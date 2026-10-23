@@ -27,7 +27,7 @@ public sealed class SettingsService
         try
         {
             if (File.Exists(FilePath))
-                Current = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Json) ?? new AppSettings();
+                Current = Deserialize(File.ReadAllText(FilePath)) ?? new AppSettings();
             Migrate(Current);
         }
         catch
@@ -55,7 +55,7 @@ public sealed class SettingsService
     {
         Directory.CreateDirectory(Folder);
         var tmp = FilePath + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(Current, Json));
+        File.WriteAllText(tmp, Serialize(Current));
         File.Move(tmp, FilePath, overwrite: true);
         Changed?.Invoke(this, EventArgs.Empty);
     }

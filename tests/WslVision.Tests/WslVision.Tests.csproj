@@ -14,6 +14,8 @@
     <Compile Include="..\..\src\WslVision\Services\WslConfigService.cs" Link="Linked\WslConfigService.cs" />
     <Compile Include="..\..\src\WslVision\Services\Docker\ComposeOrder.cs" Link="Linked\ComposeOrder.cs" />
     <Compile Include="..\..\src\WslVision\Models\DockerModels.cs" Link="Linked\DockerModels.cs" />
+    <Compile Include="..\..\src\WslVision\Models\AppSettings.cs" Link="Linked\AppSettings.cs" />
+    <Compile Include="..\..\src\WslVision\Services\SettingsService.cs" Link="Linked\SettingsService.cs" />
   </ItemGroup>
 
   <ItemGroup>
