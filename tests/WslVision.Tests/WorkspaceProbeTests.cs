@@ -51,6 +51,10 @@ public class WorkspaceProbeTests
     [Fact]
     public void Consulta_NaoPegaOLockDoGit() => Assert.Contains("GIT_OPTIONAL_LOCKS=0 git", WorkspaceProbe.Script);
 
+    // Aba sem o arquivo de status: "[ -f ] && ..." no fim do laço faria o script sair com 1 e encher o log de avisos.
+    [Fact]
+    public void Consulta_SaiComZeroSemArquivoDeStatus() => Assert.DoesNotContain("] &&", WorkspaceProbe.Script);
+
     [Fact]
     public void SaidaVazia() => Assert.Empty(WorkspaceProbe.Parse(""));
 

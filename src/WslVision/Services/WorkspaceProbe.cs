@@ -14,6 +14,8 @@ public static class WorkspaceProbe
     /// <summary>
     /// O script recebe em $A1 uma linha "id\tpasta" por aba, com as pastas já expandidas. GIT_OPTIONAL_LOCKS=0:
     /// a consulta roda de tempos em tempos e não pode pegar o .git/index.lock (o git commit do usuário falharia).
+    /// O status do comando vai num if, e não num "teste &amp;&amp; printf": sem o arquivo, o teste falso viraria o
+    /// código de saída do script, e cada consulta deixaria um aviso falso no log.
     /// </summary>
     public const string Script = """
         d="/tmp/wslvision-$(id -u)"
@@ -22,7 +24,7 @@ public static class WorkspaceProbe
           [ -n "$id" ] || continue
           printf '@@ %s\n' "$id"
           GIT_OPTIONAL_LOCKS=0 git -C "$dir" status --porcelain=v2 --branch 2>/dev/null | head -n 400
-          [ -f "$d/tab-$id.status" ] && printf '@status %s\n' "$(cat "$d/tab-$id.status")"
+          if [ -f "$d/tab-$id.status" ]; then printf '@status %s\n' "$(cat "$d/tab-$id.status")"; fi
         done
         """;
 
