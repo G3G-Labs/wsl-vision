@@ -1,0 +1,89 @@
+# Publica uma versão: ao enviar uma tag vX.Y.Z (ou vX.Y.Z-beta.1, que vira pré-lançamento), roda os testes,
+# gera as duas edições do .exe no Windows e cria a release com os arquivos e as somas SHA-256.
+#   git tag v0.2.0 && git push origin v0.2.0
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      DOTNET_NOLOGO: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      PROJECT: src/WslVision/WslVision.csproj
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Versão a partir da tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = $tag.Substring(1)
+          if ($tag -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { throw "Tag inválida: $tag. Use v1.2.3 ou v1.2.3-beta.1." }
+          # AssemblyVersion e FileVersion só aceitam números: o sufixo (-beta.1) fica só na versão do produto.
+          $core = $version.Split('-')[0]
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "core=$core" >> $env:GITHUB_OUTPUT
+          "prerelease=$($version.Contains('-'))" >> $env:GITHUB_OUTPUT
+
+      - name: Testes
+        run: dotnet test tests/WslVision.Tests -c Release
+
+      - name: Edição portátil
+        run: dotnet publish ${{ env.PROJECT }} -c Release -p:Version=${{ steps.version.outputs.version }} -p:AssemblyVersion=${{ steps.version.outputs.core }} -p:FileVersion=${{ steps.version.outputs.core }} -o out/portable
+
+      # A edição leve muda o SelfContained: a saída intermediária da portátil não pode ser reaproveitada.
+      - name: Edição leve
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force src/WslVision/obj/Release, src/WslVision/bin/Release -ErrorAction SilentlyContinue
+          dotnet publish ${{ env.PROJECT }} -c Release -p:Edition=Lite -p:Version=${{ steps.version.outputs.version }} -p:AssemblyVersion=${{ steps.version.outputs.core }} -p:FileVersion=${{ steps.version.outputs.core }} -o out/lite
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Arquivos da release
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          Copy-Item out/portable/WslVision.exe dist/WslVision.exe
+          Copy-Item out/lite/WslVision.exe dist/WslVision-lite.exe
+          Get-ChildItem dist/*.exe | Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+            Set-Content -Encoding ascii dist/SHA256SUMS.txt
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Criar a release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $lite = '{0:N1}' -f ((Get-Item dist/WslVision-lite.exe).Length / 1MB)
+          $portable = '{0:N0}' -f ((Get-Item dist/WslVision.exe).Length / 1MB)
+          @"
+          ## Download
+
+          | Arquivo | Tamanho | Quando usar |
+          | --- | --- | --- |
+          | **WslVision-lite.exe** (recomendado) | $lite MB | Precisa do [.NET Desktop Runtime 10](https://dotnet.microsoft.com/download/dotnet/10.0). Ocupa menos disco e menos RAM. |
+          | **WslVision.exe** | $portable MB | Portátil: roda em qualquer Windows 10/11, sem instalar nada. |
+
+          Não precisa instalar: é só abrir. Na primeira vez, um assistente escolhe a distro e configura o Docker.
+
+          O .exe ainda não é assinado digitalmente. Se o Windows mostrar "O Windows protegeu o computador", clique em **Mais informações** › **Executar assim mesmo**. Para conferir o arquivo, compare com o SHA256SUMS.txt (``Get-FileHash WslVision.exe``).
+
+          "@ | Set-Content -Encoding utf8 notes.md
+          $flags = @()
+          if ('${{ steps.version.outputs.prerelease }}' -eq 'True') { $flags += '--prerelease' }
+          gh release create '${{ github.ref_name }}' dist/WslVision-lite.exe dist/WslVision.exe dist/SHA256SUMS.txt `
+            --verify-tag --title 'WSL Vision ${{ steps.version.outputs.version }}' --notes-file notes.md --generate-notes @flags
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
