@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:layout="clr-namespace:WslVision.Views.Layout"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:vm="clr-namespace:WslVision.ViewModels"
@@ -66,18 +67,11 @@
                 </StackPanel>
             </Border>
 
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+            <!--  Dois cartões por linha; um embaixo do outro quando não cabem. Docker e distro somem com a distro desligada  -->
+            <layout:AdaptiveGrid ColumnSpacing="16" MaxColumns="2" MinColumnWidth="380" RowSpacing="16">
 
                 <!--  Docker  -->
-                <Border Grid.Row="0" Grid.Column="0" Margin="0,0,8,16" Padding="18,16" Style="{StaticResource CardBorder}" Visibility="{Binding CanAnalyze, Converter={StaticResource BoolToVis}}">
+                <Border Padding="18,16" Style="{StaticResource CardBorder}" Visibility="{Binding CanAnalyze, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
                         <DockPanel>
                             <ui:SymbolIcon Margin="0,0,10,0" DockPanel.Dock="Left" FontSize="22" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Symbol="BoxMultiple24" />
@@ -101,7 +95,7 @@
                 </Border>
 
                 <!--  Linux  -->
-                <Border Grid.Row="0" Grid.Column="1" Margin="8,0,0,16" Padding="18,16" Style="{StaticResource CardBorder}" Visibility="{Binding CanAnalyze, Converter={StaticResource BoolToVis}}">
+                <Border Padding="18,16" Style="{StaticResource CardBorder}" Visibility="{Binding CanAnalyze, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
                         <DockPanel>
                             <ui:SymbolIcon Margin="0,0,10,0" DockPanel.Dock="Left" FontSize="22" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Symbol="Folder24" />
@@ -121,7 +115,7 @@
                 </Border>
 
                 <!--  Memória  -->
-                <Border Grid.Row="1" Grid.Column="0" Margin="0,0,8,16" Padding="18,16" Style="{StaticResource CardBorder}">
+                <Border Padding="18,16" Style="{StaticResource CardBorder}">
                     <StackPanel>
                         <DockPanel>
                             <ui:SymbolIcon Margin="0,0,10,0" DockPanel.Dock="Left" FontSize="22" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Symbol="DeveloperBoard24" />
@@ -148,12 +142,12 @@
                             </StackPanel>
                         </Button>
                         <TextBlock Margin="0,8,0,0" Style="{StaticResource Caption}"
-                                   Text="Descarta o cache de arquivos do Linux sem parar nada. Com “Devolver memória ociosa ao Windows” ligado (Monitor), o vmmemWSL diminui em seguida." />
+                                   Text="Descarta o cache de arquivos do Linux sem parar nada. Com “Devolver memória ociosa” ligado (Visão geral › Limites do WSL), o vmmemWSL diminui em seguida." />
                     </StackPanel>
                 </Border>
 
                 <!--  Disco virtual  -->
-                <Border Grid.Row="1" Grid.Column="1" Margin="8,0,0,16" Padding="18,16" Style="{StaticResource CardBorder}">
+                <Border Padding="18,16" Style="{StaticResource CardBorder}">
                     <StackPanel>
                         <DockPanel>
                             <ui:SymbolIcon Margin="0,0,10,0" DockPanel.Dock="Left" FontSize="22" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Symbol="HardDrive20" />
@@ -183,7 +177,7 @@
                                    Text="O .vhdx cresce, mas não encolhe sozinho. Compactar devolve ao C: o espaço livre dentro do Linux; faça depois de limpar. Desliga o WSL e pede permissão de administrador." />
                     </StackPanel>
                 </Border>
-            </Grid>
+            </layout:AdaptiveGrid>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

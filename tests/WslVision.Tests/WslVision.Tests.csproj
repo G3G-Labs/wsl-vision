@@ -20,6 +20,11 @@
     <Compile Include="..\..\src\WslVision\Services\CachedQuery.cs" Link="Linked\CachedQuery.cs" />
     <Compile Include="..\..\src\WslVision\Services\DockerPolling.cs" Link="Linked\DockerPolling.cs" />
     <Compile Include="..\..\src\WslVision\Services\LiveStream.cs" Link="Linked\LiveStream.cs" />
+    <Compile Include="..\..\src\WslVision\Views\Layout\LayoutMath.cs" Link="Linked\LayoutMath.cs" />
+    <Compile Include="..\..\src\WslVision\Models\Workspace.cs" Link="Linked\Workspace.cs" />
+    <Compile Include="..\..\src\WslVision\Services\WorkspaceStore.cs" Link="Linked\WorkspaceStore.cs" />
+    <Compile Include="..\..\src\WslVision\Services\TerminalScript.cs" Link="Linked\TerminalScript.cs" />
+    <Compile Include="..\..\src\WslVision\Services\WorkspaceProbe.cs" Link="Linked\WorkspaceProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -10,6 +10,7 @@ using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 using WslVision.Services;
 using WslVision.ViewModels;
+using WslVision.Views.Layout;
 
 namespace WslVision.Views;
 
@@ -38,6 +39,8 @@ public partial class MainWindow : FluentWindow
         // O redesign é escuro de propósito: o tema e a cor de destaque são fixados no App, sem seguir o Windows.
         vm.Palette.PropertyChanged += (_, e) =>
         {
+            if (e.PropertyName == nameof(PaletteViewModel.IsOpen))
+                TerminalPage.HideTerminals(vm.Palette.IsOpen);
             if (e.PropertyName == nameof(PaletteViewModel.IsOpen) && vm.Palette.IsOpen)
                 Dispatcher.BeginInvoke(() => { PaletteInput.Focus(); Keyboard.Focus(PaletteInput); }, DispatcherPriority.Input);
             if (e.PropertyName == nameof(PaletteViewModel.Selected) && vm.Palette.Selected is { } sel)
@@ -87,13 +90,32 @@ public partial class MainWindow : FluentWindow
     {
         if (!SearchButton.IsLoaded)
             return;
+        // Janela estreita (meia tela): a busca vira só o ícone, para não cobrir a marca nem os botões da janela.
+        var brandRight = Brand.TranslatePoint(new Point(Brand.ActualWidth, 0), this).X + 16;
+        SetSearchCompact(ActualWidth - brandRight - CaptionButtonsWidth < FullSearchWidth + 16);
         var m = SearchButton.Margin;
         var slotLeft = SearchButton.TranslatePoint(new Point(0, 0), this).X - m.Left;
-        var brandRight = Brand.TranslatePoint(new Point(Brand.ActualWidth, 0), this).X + 16;
-        var target = Math.Max((ActualWidth - SearchButton.ActualWidth) / 2, brandRight);
+        var target = Math.Max((ActualWidth - SearchButton.Width) / 2, brandRight);
         var left = Math.Max(0, target - slotLeft);
         if (Math.Abs(left - m.Left) > 0.5)
             SearchButton.Margin = new Thickness(left, m.Top, m.Right, m.Bottom);
+    }
+
+    private const double FullSearchWidth = 340;
+
+    // Minimizar, maximizar e fechar do TitleBar (46 px cada).
+    private const double CaptionButtonsWidth = 3 * 46;
+
+    private void SetSearchCompact(bool compact)
+    {
+        var width = compact ? 36 : FullSearchWidth;
+        if (SearchButton.Width == width)
+            return;
+        SearchButton.Width = width;
+        SearchButton.Padding = compact ? new Thickness(0) : new Thickness(10, 0, 8, 0);
+        SearchButton.HorizontalContentAlignment = compact ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
+        SearchIcon.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 8, 0);
+        SearchText.Visibility = SearchHint.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void UpdateActivity()
@@ -120,12 +142,17 @@ public partial class MainWindow : FluentWindow
     {
         var scale = _settings.Current.UiScale > 0 ? _settings.Current.UiScale : WindowsTextScale();
         scale = Math.Clamp(scale, 1.0, 2.25);
-        MinWidth = Math.Min(900 * scale, SystemParameters.WorkArea.Width);
+        // A 100%, cabe em meia tela de 1366 px (Snap); as telas se reorganizam abaixo de 1100 e de 840 de largura útil.
+        MinWidth = Math.Min(LayoutMath.WindowMinWidth * scale, SystemParameters.WorkArea.Width);
+        MinHeight = Math.Min(520 * scale, SystemParameters.WorkArea.Height);
         // Ajustes são salvos o tempo todo (favoritos, pastas recentes): só refaz o layout se a escala mudou.
         if (scale == _appliedScale)
             return;
         _appliedScale = scale;
-        ContentRoot.LayoutTransform = scale == 1.0 ? Transform.Identity : new ScaleTransform(scale, scale);
+        var transform = scale == 1.0 ? Transform.Identity : new ScaleTransform(scale, scale);
+        ContentRoot.LayoutTransform = transform;
+        // A paleta fica fora do ContentRoot (cobre a barra de título), mas acompanha o tamanho da interface.
+        PaletteRoot.LayoutTransform = transform;
     }
 
     /// <summary>Configurações › Acessibilidade › Tamanho do texto (100% a 225%).</summary>

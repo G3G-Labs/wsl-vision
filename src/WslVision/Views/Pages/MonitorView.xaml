@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:layout="clr-namespace:WslVision.Views.Layout"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:svc="clr-namespace:WslVision.Services"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -14,7 +15,6 @@
     <UserControl.Resources>
         <Style x:Key="Tile" TargetType="Border" BasedOn="{StaticResource CardBorder}">
             <Setter Property="Padding" Value="16,14,16,16" />
-            <Setter Property="Margin" Value="0,0,12,0" />
         </Style>
         <Style x:Key="Meter" TargetType="ProgressBar">
             <Setter Property="Height" Value="6" />
@@ -47,19 +47,17 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="28,24,28,28">
             <DockPanel Margin="0,0,0,16">
-                <TextBlock VerticalAlignment="Bottom" DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}"
-                           Text="Atualiza a cada 2 s enquanto esta tela está aberta · nada é lido na bandeja" />
+                <Border VerticalAlignment="Bottom" DockPanel.Dock="Right" Style="{StaticResource HideCompact}">
+                    <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="Atualiza a cada 2 s com esta tela aberta" />
+                </Border>
                 <TextBlock Style="{StaticResource PageTitle}" Text="Visão geral" />
             </DockPanel>
 
             <!--  Ambiente  -->
             <Border Margin="0,0,0,16" Padding="22,20" Style="{StaticResource CardBorder}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Margin="0,0,24,0">
+                <!--  Estreito: a ação desce para baixo do estado e fica à esquerda  -->
+                <layout:SplitPanel Spacing="24" StackBelow="600">
+                    <StackPanel>
                         <TextBlock Style="{StaticResource SectionLabel}">
                             <Run Text="AMBIENTE · " /><Run Text="{Binding Env.DistroName, Mode=OneWay}" />
                         </TextBlock>
@@ -99,26 +97,27 @@
                     </StackPanel>
 
                     <!--  Uma ação principal, conforme o estado  -->
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <StackPanel HorizontalAlignment="Right" Visibility="{Binding Env.IsOff, Converter={StaticResource BoolToVis}}">
-                            <Button HorizontalAlignment="Right" Height="40" Padding="18,0" Command="{Binding Env.StartCommand}" Style="{StaticResource BtnPrimary}"
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel HorizontalAlignment="{Binding (layout:SplitPanel.IsStacked), RelativeSource={RelativeSource Self}, Converter={StaticResource EndAlign}}"
+                                    Visibility="{Binding Env.IsOff, Converter={StaticResource BoolToVis}}">
+                            <Button HorizontalAlignment="{Binding (layout:SplitPanel.IsStacked), RelativeSource={RelativeSource Self}, Converter={StaticResource EndAlign}}" Height="40" Padding="18,0" Command="{Binding Env.StartCommand}" Style="{StaticResource BtnPrimary}"
                                     AutomationProperties.HelpText="{Binding Env.StartHint}">
                                 <StackPanel Orientation="Horizontal">
                                     <ui:SymbolIcon Margin="0,0,8,0" FontSize="16" Filled="True" Symbol="Play24" />
                                     <TextBlock VerticalAlignment="Center" Text="Iniciar ambiente" />
                                 </StackPanel>
                             </Button>
-                            <TextBlock Margin="0,8,0,0" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding Env.StartHint}" />
+                            <TextBlock Margin="0,8,0,0" HorizontalAlignment="{Binding (layout:SplitPanel.IsStacked), RelativeSource={RelativeSource Self}, Converter={StaticResource EndAlign}}" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding Env.StartHint}" />
                         </StackPanel>
-                        <Border Height="40" Padding="18,0" HorizontalAlignment="Right" Background="{StaticResource Wv.Inset}" BorderBrush="{StaticResource Wv.BorderStrong}" BorderThickness="1" CornerRadius="8"
+                        <Border Height="40" Padding="18,0" HorizontalAlignment="{Binding (layout:SplitPanel.IsStacked), RelativeSource={RelativeSource Self}, Converter={StaticResource EndAlign}}" Background="{StaticResource Wv.Inset}" BorderBrush="{StaticResource Wv.BorderStrong}" BorderThickness="1" CornerRadius="8"
                                 Visibility="{Binding Env.IsStarting, Converter={StaticResource BoolToVis}}">
                             <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                                 <ui:ProgressRing Width="16" Height="16" Margin="0,0,10,0" IsIndeterminate="{Binding Env.IsStarting}" />
                                 <TextBlock VerticalAlignment="Center" Foreground="{StaticResource Wv.Text2}" Text="{Binding State.EnvironmentStep}" />
                             </StackPanel>
                         </Border>
-                        <StackPanel HorizontalAlignment="Right" Visibility="{Binding Env.IsOn, Converter={StaticResource BoolToVis}}">
-                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                        <StackPanel HorizontalAlignment="{Binding (layout:SplitPanel.IsStacked), RelativeSource={RelativeSource Self}, Converter={StaticResource EndAlign}}" Visibility="{Binding Env.IsOn, Converter={StaticResource BoolToVis}}">
+                            <StackPanel HorizontalAlignment="{Binding (layout:SplitPanel.IsStacked), RelativeSource={RelativeSource Self}, Converter={StaticResource EndAlign}}" Orientation="Horizontal">
                                 <Button Height="40" Margin="0,0,8,0" Command="{Binding Env.StopCommand}" Style="{StaticResource BtnSecondary}"
                                         ToolTip="Para o Docker (e os containers). A distro continua ligada.">
                                     <StackPanel Orientation="Horizontal">
@@ -133,23 +132,17 @@
                                     </StackPanel>
                                 </Button>
                             </StackPanel>
-                            <TextBlock Margin="0,8,0,0" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}">
+                            <TextBlock Margin="0,8,0,0" HorizontalAlignment="{Binding (layout:SplitPanel.IsStacked), RelativeSource={RelativeSource Self}, Converter={StaticResource EndAlign}}" FontSize="12" Foreground="{StaticResource Wv.Text3}">
                                 <Run Text="Desligar o WSL devolve " /><Run Text="{Binding VmmemText, Mode=OneWay}" /><Run Text=" ao Windows" />
                             </TextBlock>
                         </StackPanel>
                     </StackPanel>
-                </Grid>
+                </layout:SplitPanel>
             </Border>
 
-            <!--  Consumo: quatro números, uma leitura  -->
-            <Grid Margin="0,0,-12,16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Border Grid.Column="0" Style="{StaticResource Tile}">
+            <!--  Consumo: quatro números, uma leitura. Quatro colunas, duas quando aperta, uma no estreito (nunca 3 + 1)  -->
+            <layout:AdaptiveGrid Margin="0,0,0,16" ColumnSpacing="12" ColumnSteps="1,2,4" MaxColumns="4" MinColumnWidth="200" RowSpacing="12">
+                <Border Style="{StaticResource Tile}">
                     <StackPanel>
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="da distro" />
@@ -163,7 +156,7 @@
                         <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="Em uso dentro da distro" />
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="1" Style="{StaticResource Tile}">
+                <Border Style="{StaticResource Tile}">
                     <StackPanel>
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}">
@@ -180,7 +173,7 @@
                         <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="Último minuto" />
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="2" Style="{StaticResource Tile}">
+                <Border Style="{StaticResource Tile}">
                     <StackPanel>
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="ext4.vhdx" />
@@ -191,7 +184,7 @@
                         <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding DiskSizeText}" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
-                <Border Grid.Column="3" Style="{StaticResource Tile}">
+                <Border Style="{StaticResource Tile}">
                     <StackPanel>
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="vmmemWSL" />
@@ -202,17 +195,13 @@
                         <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="Memória reservada para a VM" />
                     </StackPanel>
                 </Border>
-            </Grid>
+            </layout:AdaptiveGrid>
 
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*" />
-                    <ColumnDefinition Width="12" />
-                    <ColumnDefinition Width="2*" />
-                </Grid.ColumnDefinitions>
+            <!--  Projetos ao lado do resumo; no estreito, o resumo desce  -->
+            <layout:SplitPanel FirstWidth="3*" SecondWidth="2*" Spacing="12" StackBelow="820">
 
                 <!--  Projetos  -->
-                <Border Grid.Column="0" VerticalAlignment="Top" Style="{StaticResource CardBorder}">
+                <Border VerticalAlignment="Top" Style="{StaticResource CardBorder}">
                     <StackPanel>
                         <DockPanel Margin="16,14,10,8">
                             <Button DockPanel.Dock="Right" Height="28" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -242,14 +231,19 @@
                                                                Text="{Binding WorkingDirLabel}" TextTrimming="CharacterEllipsis" Visibility="{Binding HasWorkingDir, Converter={StaticResource BoolToVis}}" />
                                                 </DockPanel>
                                             </StackPanel>
-                                            <TextBlock Grid.Column="1" Margin="0,0,16,0" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Wv.Text2}">
-                                                <Run FontWeight="SemiBold" Foreground="{StaticResource Wv.Text}" Text="{Binding CpuText, Mode=OneWay}" /><Run Text=" CPU   " /><Run FontWeight="SemiBold" Foreground="{StaticResource Wv.Text}" Text="{Binding MemText, Mode=OneWay}" /><Run Text=" RAM" />
-                                            </TextBlock>
+                                            <!--  CPU e RAM só com espaço: o nome do projeto tem prioridade  -->
+                                            <Border Grid.Column="1" Margin="0,0,16,0" VerticalAlignment="Center" Style="{StaticResource WideOnly}">
+                                                <TextBlock FontSize="13" Foreground="{StaticResource Wv.Text2}">
+                                                    <Run FontWeight="SemiBold" Foreground="{StaticResource Wv.Text}" Text="{Binding CpuText, Mode=OneWay}" /><Run Text=" CPU   " /><Run FontWeight="SemiBold" Foreground="{StaticResource Wv.Text}" Text="{Binding MemText, Mode=OneWay}" /><Run Text=" RAM" />
+                                                </TextBlock>
+                                            </Border>
                                             <StackPanel Grid.Column="2" Margin="0,0,12,0" VerticalAlignment="Center" Orientation="Horizontal" Visibility="{Binding IsCompose, Converter={StaticResource BoolToVis}}">
                                                 <ui:ToggleSwitch AutomationProperties.Name="{Binding Title, StringFormat=Iniciar {0} com o ambiente}"
                                                                  Command="{Binding DataContext.Inventory.ToggleStartupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                                                  IsChecked="{Binding IsStartup, Mode=OneWay}" ToolTip="O botão Iniciar ambiente também sobe este projeto" />
-                                                <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Wv.Text2}" Text="Com o ambiente" />
+                                                <Border Margin="8,0,0,0" VerticalAlignment="Center" Style="{StaticResource HideCompact}">
+                                                    <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text2}" Text="Com o ambiente" />
+                                                </Border>
                                             </StackPanel>
                                             <Grid Grid.Column="3" VerticalAlignment="Center">
                                                 <Button Height="32" Command="{Binding DataContext.Inventory.OpenGroupInVsCodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
@@ -268,7 +262,7 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Column="2">
+                <StackPanel>
                     <!--  Quem mais usa memória  -->
                     <Border Margin="0,0,0,12" Padding="16,14" Style="{StaticResource CardBorder}">
                         <StackPanel>
@@ -382,7 +376,7 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-            </Grid>
+            </layout:SplitPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

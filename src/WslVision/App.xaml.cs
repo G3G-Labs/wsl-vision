@@ -19,6 +19,9 @@ public partial class App : Application
 
     public SettingsService Settings { get; } = new();
 
+    /// <summary>Os workspaces do Terminal (workspaces.json). Gravados com atraso; o resto pendente vai para o disco ao sair.</summary>
+    public WorkspaceStore Workspaces { get; } = new();
+
     public Notifier Notifier { get; private set; } = null!;
 
     private WslService _wsl = null!;
@@ -64,10 +67,10 @@ public partial class App : Application
 
         var settingsVm = new SettingsViewModel(Settings, _wsl, _setup, wslConfig, _docker, state, _dialogs, Notifier);
         settingsVm.RunSetupRequested += (_, _) => RunSetup(fromSettings: true);
-        var terminal = new TerminalViewModel(Settings, _launcher, _dialogs, Notifier);
         var activity = new ActivityLog();
         // Uma lista de containers e um modelo do ambiente, compartilhados por todas as telas.
         var inventory = new ContainerInventory(state, _docker, _metrics, Settings, Notifier, _launcher, activity);
+        var terminal = new TerminalViewModel(Settings, _launcher, _dialogs, Notifier, Workspaces, _wsl, inventory, state);
         var env = new EnvironmentViewModel(state, inventory, _docker, _metrics, Settings, _dialogs, Notifier, activity);
         var containers = new ContainersViewModel(state, inventory, env, _docker, _dialogs, Notifier, terminal, activity);
         var mainVm = new MainWindowViewModel(
@@ -78,12 +81,13 @@ public partial class App : Application
             new MonitorViewModel(state, _metrics, wslConfig, Settings, _dialogs, Notifier, inventory, env, activity),
             terminal,
             new MaintenanceViewModel(state, new MaintenanceService(_wsl), _docker, Settings, _metrics, _dialogs, Notifier),
-            settingsVm);
+            settingsVm,
+            new AboutViewModel(Settings, Notifier));
 
         _main = new MainWindow(mainVm, Settings);
         MainWindow = _main;
 
-        var flyout = new TrayFlyoutViewModel(state, env, inventory, _metrics, _launcher, Settings, Notifier);
+        var flyout = new TrayFlyoutViewModel(state, env, inventory, _metrics, _launcher, Settings, Notifier, terminal);
         _tray = new TrayService(state, Settings, _launcher, Notifier, env, flyout);
         _tray.ShowWindowRequested += (_, _) => ShowMain();
         _tray.ExitRequested += (_, _) => ExitApp();
@@ -161,6 +165,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        Workspaces.Dispose();
         _metrics?.Stop();
         _tray?.Dispose();
         _docker?.Dispose();

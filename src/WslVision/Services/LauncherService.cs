@@ -70,13 +70,6 @@ public sealed class LauncherService(WslService wsl)
         Process.Start(psi)?.Dispose();
     }
 
-    /// <summary>Linha de comando do wsl.exe para um terminal embutido no app (mesmo script temporário do Windows Terminal).</summary>
-    public async Task<string> PrepareEmbeddedTerminalAsync(string distro, string linuxDir, bool asRoot = false, string? command = null)
-    {
-        var args = await PrepareSessionAsync(distro, linuxDir, asRoot, command);
-        return string.Join(' ', args.Select(QuoteArgument));
-    }
-
     /// <summary>Aspas no padrão do Windows (CommandLineToArgvW), só quando o argumento precisa.</summary>
     public static string QuoteArgument(string arg)
     {
@@ -106,33 +99,42 @@ public sealed class LauncherService(WslService wsl)
     /// </summary>
     private async Task<List<string>> PrepareSessionAsync(string distro, string linuxDir, bool asRoot, string? command)
     {
-        static string B64(string s) => Convert.ToBase64String(Encoding.UTF8.GetBytes(s));
+        var paths = await WriteScriptsAsync(distro, [TerminalScript.Build(linuxDir, command, tabId: null, helpers: false)], asRoot);
+        return WslArgs(distro, asRoot, paths[0]);
+    }
 
-        var sb = new StringBuilder();
-        sb.Append("rm -f -- \"$0\"\n");
-        sb.Append($"cd -- \"$(printf '%s' '{B64(linuxDir)}' | base64 -d)\" 2>/dev/null || cd\n");
-        if (!string.IsNullOrWhiteSpace(command))
+    /// <summary>
+    /// Prepara várias abas embutidas de uma vez: um wsl.exe por usuário (o seu e, se houver, o root), não um por aba.
+    /// Abrir dez abas não pode virar uma rajada de wsl.exe: cada um abre canais na VM, e isso já travou a distro.
+    /// Devolve a linha de comando de cada aba, na ordem pedida.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> PrepareEmbeddedTerminalsAsync(string distro, IReadOnlyList<TerminalRequest> requests, bool helpers)
+    {
+        var lines = new string[requests.Count];
+        foreach (var byUser in requests.Select((r, i) => (Request: r, Index: i)).GroupBy(x => x.Request.AsRoot))
         {
-            sb.Append($"__wv_cmd=\"$(printf '%s' '{B64(command)}' | base64 -d)\"\n");
-            sb.Append("printf '\\033[1;34m$ %s\\033[0m\\n' \"$__wv_cmd\"\n");
-            sb.Append("eval \"$__wv_cmd\"\n");
-            sb.Append("unset __wv_cmd\n");
+            var items = byUser.ToList();
+            var scripts = items.Select(x => TerminalScript.Build(x.Request.Folder, x.Request.Command, x.Request.TabId, helpers)).ToList();
+            var paths = await WriteScriptsAsync(distro, scripts, byUser.Key, items.Select(x => x.Request.TabId).OfType<string>());
+            for (var k = 0; k < items.Count; k++)
+                lines[items[k].Index] = string.Join(' ', WslArgs(distro, byUser.Key, paths[k]).Select(QuoteArgument));
         }
-        sb.Append("exec \"${SHELL:-/bin/bash}\" -l\n");
+        return lines;
+    }
 
-        // Uma pasta por usuário: se o root criasse uma pasta compartilhada (0700), o usuário comum não conseguiria mais usá-la.
-        var r = await wsl.RunScriptAsync(distro, """
-            umask 077
-            d="/tmp/wslvision-$(id -u)"
-            mkdir -p "$d"
-            f="$(mktemp "$d/term.XXXXXX")" || exit 1
-            printf '%s' "$A1" > "$f"
-            printf '%s' "$f"
-            """, [sb.ToString()], asRoot);
-        if (!r.Success || r.StdOut.Trim().Length == 0)
+    /// <summary>Grava os scripts numa pasta temporária do usuário dentro da distro e devolve os caminhos, na mesma ordem.</summary>
+    private async Task<IReadOnlyList<string>> WriteScriptsAsync(string distro, IReadOnlyList<string> scripts, bool asRoot, IEnumerable<string>? tabIds = null)
+    {
+        // Tudo vai pelo stdin: como argumentos, um lote grande estouraria a linha de comando do Windows (32 767 caracteres).
+        var r = await wsl.RunScriptAsync(distro, TerminalScript.Writer(scripts, tabIds ?? []), asRoot: asRoot);
+        var paths = r.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (!r.Success || paths.Length != scripts.Count)
             throw new InvalidOperationException(WslService.ErrorText(r, "Não foi possível preparar o terminal."));
-        var scriptPath = r.StdOut.Trim();
+        return paths;
+    }
 
+    private static List<string> WslArgs(string distro, bool asRoot, string scriptPath)
+    {
         var wslArgs = new List<string> { "wsl.exe", "--distribution", distro };
         if (asRoot)
             wslArgs.AddRange(["--user", "root"]);

@@ -52,6 +52,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     [ObservableProperty] private bool _useTcp;
     [ObservableProperty] private bool _startWithWindows;
     [ObservableProperty] private bool _closeToTray;
+    [ObservableProperty] private bool _terminalHelpers;
     [ObservableProperty] private LaunchAction _onLaunch;
 
     /// <summary>Docker liga junto com a distro (systemd). Só dá para mudar com a distro ligada e usando systemd.</summary>
@@ -85,6 +86,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         {
             StartWithWindows = StartupService.IsEnabled;
             CloseToTray = _settings.Current.CloseToTray;
+            TerminalHelpers = _settings.Current.TerminalHelpers;
             OnLaunch = _settings.Current.OnLaunch;
             SelectedScale = ScaleOptions.FirstOrDefault(o => Math.Abs(o.Value - _settings.Current.UiScale) < 0.01) ?? ScaleOptions[0];
             UseTcp = _settings.Current.Connection == DockerConnectionMode.Tcp;
@@ -289,6 +291,12 @@ public sealed partial class SettingsViewModel : PageViewModel
             _settings.Update(s => s.CloseToTray = value);
     }
 
+    partial void OnTerminalHelpersChanged(bool value)
+    {
+        if (!_loading)
+            _settings.Update(s => s.TerminalHelpers = value);
+    }
+
     partial void OnOnLaunchChanged(LaunchAction value)
     {
         if (!_loading)
@@ -332,9 +340,6 @@ public sealed partial class SettingsViewModel : PageViewModel
             IsBusy = false;
         }
     }
-
-    [RelayCommand]
-    private void OpenSettingsFolder() => LauncherService.OpenUrl(_settings.Folder);
 }
 
 public sealed record ScaleOption(double Value, string Label)

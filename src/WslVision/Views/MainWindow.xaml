@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:layout="clr-namespace:WslVision.Views.Layout"
     xmlns:pages="clr-namespace:WslVision.Views.Pages"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:vm="clr-namespace:WslVision.ViewModels"
@@ -11,8 +12,8 @@
     Icon="pack://application:,,,/Assets/app.ico"
     Width="1280"
     Height="820"
-    MinWidth="900"
-    MinHeight="600"
+    MinWidth="640"
+    MinHeight="520"
     d:DataContext="{d:DesignInstance Type=vm:MainWindowViewModel}"
     Background="{StaticResource Wv.Bg}"
     ExtendsContentIntoTitleBar="True"
@@ -38,6 +39,9 @@
         </DataTemplate>
         <DataTemplate DataType="{x:Type vm:MaintenanceViewModel}">
             <pages:MaintenanceView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AboutViewModel}">
+            <pages:AboutView />
         </DataTemplate>
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <pages:SettingsView />
@@ -84,6 +88,7 @@
                     Padding="10,0,8,0"
                     HorizontalContentAlignment="Stretch"
                     AutomationProperties.Name="Buscar ou executar (Ctrl+K)"
+                    ToolTip="Buscar ou executar (Ctrl+K)"
                     Background="{StaticResource Wv.Surface}"
                     BorderBrush="#25272B"
                     Command="{Binding Palette.OpenCommand}"
@@ -91,11 +96,11 @@
                     Style="{StaticResource WvButtonBase}"
                     Tag="{StaticResource Wv.Hover}">
                     <DockPanel>
-                        <Border Padding="6,1" VerticalAlignment="Center" BorderBrush="{StaticResource Wv.BorderStrong}" BorderThickness="1" CornerRadius="4" DockPanel.Dock="Right">
+                        <Border x:Name="SearchHint" Padding="6,1" VerticalAlignment="Center" BorderBrush="{StaticResource Wv.BorderStrong}" BorderThickness="1" CornerRadius="4" DockPanel.Dock="Right">
                             <TextBlock FontSize="11" Foreground="{StaticResource Wv.Text2}" Text="Ctrl K" />
                         </Border>
-                        <ui:SymbolIcon Margin="0,0,8,0" VerticalAlignment="Center" DockPanel.Dock="Left" FontSize="14" Symbol="Search24" />
-                        <TextBlock VerticalAlignment="Center" FontSize="13" Text="Buscar ou executar…" />
+                        <ui:SymbolIcon x:Name="SearchIcon" Margin="0,0,8,0" VerticalAlignment="Center" DockPanel.Dock="Left" FontSize="14" Symbol="Search24" />
+                        <TextBlock x:Name="SearchText" VerticalAlignment="Center" FontSize="13" Text="Buscar ou executar…" />
                     </DockPanel>
                 </Button>
             </ui:TitleBar.CenterContent>
@@ -127,7 +132,7 @@
                     CommandParameter="{Binding Settings}"
                     DockPanel.Dock="Bottom"
                     GroupName="Nav"
-                    IsChecked="{Binding Settings.IsCurrent, Mode=OneWay}"
+                    IsChecked="{Binding IsSettingsSection, Mode=OneWay}"
                     Style="{StaticResource NavRailItem}"
                     ToolTip="Ajustes (Ctrl+,)">
                     <StackPanel>
@@ -162,9 +167,9 @@
                 BorderBrush="{StaticResource Wv.Border}"
                 BorderThickness="1,1,0,0"
                 CornerRadius="12,0,0,0">
-                <Grid>
+                <Grid layout:Responsive.Track="True">
                     <ContentControl Content="{Binding Current}" Focusable="False" />
-                    <pages:TerminalView DataContext="{Binding Terminal}" Visibility="{Binding IsCurrent, Converter={StaticResource BoolToVis}}" />
+                    <pages:TerminalView x:Name="TerminalPage" DataContext="{Binding Terminal}" Visibility="{Binding IsCurrent, Converter={StaticResource BoolToVis}}" />
                     <ProgressBar
                         Height="3"
                         VerticalAlignment="Top"
@@ -215,13 +220,13 @@
         </Grid>
 
         <!--  Paleta de comandos (Ctrl+K): abre por cima de qualquer tela  -->
-        <Grid Grid.Row="0" Grid.RowSpan="2" Visibility="{Binding Palette.IsOpen, Converter={StaticResource BoolToVis}}">
+        <Grid x:Name="PaletteRoot" Grid.Row="0" Grid.RowSpan="2" Visibility="{Binding Palette.IsOpen, Converter={StaticResource BoolToVis}}">
             <Border Background="#8C050607" MouseLeftButtonDown="OnPaletteBackdrop" />
             <Border
-                Width="640"
+                MaxWidth="640"
                 MaxHeight="560"
                 Margin="16,96,16,40"
-                HorizontalAlignment="Center"
+                HorizontalAlignment="Stretch"
                 VerticalAlignment="Top"
                 AutomationProperties.Name="Paleta de comandos"
                 Background="{StaticResource Wv.Flyout}"

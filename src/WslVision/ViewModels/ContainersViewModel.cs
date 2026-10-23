@@ -307,7 +307,7 @@ public sealed partial class ContainersViewModel : PageViewModel
             return;
         try
         {
-            await _terminal.OpenSessionAsync(dir, title: g.Title);
+            await (g.Project is { } project ? _terminal.OpenProjectAsync(project, dir) : _terminal.OpenSessionAsync(dir, title: g.Title));
         }
         catch (Exception ex)
         {

@@ -2,7 +2,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-    xmlns:conv="clr-namespace:WslVision.Converters">
+    xmlns:conv="clr-namespace:WslVision.Converters"
+    xmlns:layout="clr-namespace:WslVision.Views.Layout">
 
     <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
     <conv:BoolToVisibilityConverter x:Key="InverseBoolToVis" Invert="True" />
@@ -17,6 +18,7 @@
     <conv:ZeroToVisibilityConverter x:Key="ZeroToVis" />
     <conv:ZeroToVisibilityConverter x:Key="NonZeroToVis" Invert="True" />
     <conv:AllEqualConverter x:Key="AllEqual" />
+    <conv:EndAlignConverter x:Key="EndAlign" />
 
     <!--  Moldura de foco só para teclado (Tab), com cantos arredondados  -->
     <Style x:Key="RoundFocusVisual">
@@ -357,5 +359,28 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!--
+        Responsivo: a janela mede a área da página (Responsive.Track) e cada elemento herda a faixa em Responsive.Size.
+        Largo ≥ 1100, médio 840–1099, compacto < 840 (as mesmas faixas do canvas de design). Use em painéis e bordas;
+        num TextBlock sem estilo próprio, envolva-o numa Border para não perder o estilo implícito.
+    -->
+    <Style x:Key="WideOnly" TargetType="FrameworkElement">
+        <Style.Triggers>
+            <Trigger Property="layout:Responsive.Size" Value="Medium">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Trigger>
+            <Trigger Property="layout:Responsive.Size" Value="Compact">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="HideCompact" TargetType="FrameworkElement">
+        <Style.Triggers>
+            <Trigger Property="layout:Responsive.Size" Value="Compact">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>

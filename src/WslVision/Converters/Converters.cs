@@ -118,3 +118,12 @@ public sealed class AllEqualConverter : IMultiValueConverter
 
     public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+/// <summary>Alinhamento de um bloco de ações: à direita ao lado do conteúdo; à esquerda quando o SplitPanel empilha (true).</summary>
+public sealed class EndAlignConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is true ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}

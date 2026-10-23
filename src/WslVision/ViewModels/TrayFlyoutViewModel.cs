@@ -18,9 +18,10 @@ public sealed partial class TrayFlyoutViewModel : ObservableObject
     private bool _open;
 
     public TrayFlyoutViewModel(AppState state, EnvironmentViewModel env, ContainerInventory inventory, MetricsService metrics,
-        LauncherService launcher, SettingsService settings, Notifier notifier)
+        LauncherService launcher, SettingsService settings, Notifier notifier, TerminalViewModel terminal)
     {
         _state = state;
+        Terminal = terminal;
         Env = env;
         Inventory = inventory;
         _metrics = metrics;
@@ -37,6 +38,9 @@ public sealed partial class TrayFlyoutViewModel : ObservableObject
     public EnvironmentViewModel Env { get; }
 
     public ContainerInventory Inventory { get; }
+
+    /// <summary>Os workspaces do Terminal: iniciar, parar ou abrir na janela.</summary>
+    public TerminalViewModel Terminal { get; }
 
     /// <summary>Pedidos para o App (abrir a janela, sair) e para a bandeja (fechar o painel).</summary>
     public event EventHandler? ShowWindowRequested;
@@ -148,6 +152,32 @@ public sealed partial class TrayFlyoutViewModel : ObservableObject
     {
         CloseRequested?.Invoke(this, EventArgs.Empty);
         return g.WorkingDir is { } dir ? Try(() => _launcher.OpenTerminalAsync(_state.Distro!, dir, title: g.Title)) : Task.CompletedTask;
+    }
+
+    // Os terminais embutidos vivem na janela: iniciar um workspace também a abre, no Terminal.
+
+    [RelayCommand]
+    private Task StartWorkspace(WorkspaceGroupViewModel g)
+    {
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        Terminal.Show(g);
+        ShowWindowRequested?.Invoke(this, EventArgs.Empty);
+        return Terminal.StartGroupCommand.ExecuteAsync(g);
+    }
+
+    [RelayCommand]
+    private Task StopWorkspace(WorkspaceGroupViewModel g)
+    {
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        return Terminal.StopGroupCommand.ExecuteAsync(g);
+    }
+
+    [RelayCommand]
+    private void OpenWorkspace(WorkspaceGroupViewModel g)
+    {
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        Terminal.Show(g);
+        ShowWindowRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task Try(Func<Task> action)

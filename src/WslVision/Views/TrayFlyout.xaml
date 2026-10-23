@@ -187,6 +187,36 @@
                 </ItemsControl>
             </StackPanel>
 
+            <!--  Workspaces do Terminal  -->
+            <StackPanel Margin="10,4,10,6" Visibility="{Binding Terminal.Groups.Count, Converter={StaticResource NonZeroToVis}}">
+                <TextBlock Margin="4,0,0,4" Style="{StaticResource SectionLabel}" Text="WORKSPACES" />
+                <ItemsControl ItemsSource="{Binding Terminal.Groups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:WorkspaceGroupViewModel}">
+                            <DockPanel MinHeight="44" Margin="4,0">
+                                <Border Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center" Background="{Binding Brush}" CornerRadius="2" DockPanel.Dock="Left" />
+                                <Grid Margin="6,0,0,0" DockPanel.Dock="Right">
+                                    <Button Height="30" AutomationProperties.Name="{Binding Name, StringFormat=Iniciar o workspace {0}}" Content="Iniciar" FontSize="12" Style="{StaticResource BtnSecondary}"
+                                            Command="{Binding DataContext.StartWorkspaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                            ToolTip="Abre a janela no Terminal e sobe o workspace" Visibility="{Binding AnyRunning, Converter={StaticResource InverseBoolToVis}}" />
+                                    <Button Height="30" AutomationProperties.Name="{Binding Name, StringFormat=Parar o workspace {0}}" Content="Parar" FontSize="12" Style="{StaticResource BtnSecondary}"
+                                            Command="{Binding DataContext.StopWorkspaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                            ToolTip="Ctrl+C nas abas" Visibility="{Binding AnyRunning, Converter={StaticResource BoolToVis}}" />
+                                </Grid>
+                                <Button Width="34" Height="34" AutomationProperties.Name="{Binding Name, StringFormat=Abrir o workspace {0}}" DockPanel.Dock="Right" Style="{StaticResource BtnIcon}" ToolTip="Abrir no Terminal"
+                                        Command="{Binding DataContext.OpenWorkspaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                                    <ui:SymbolIcon FontSize="15" Symbol="WindowConsole20" />
+                                </Button>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock FontSize="13" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock FontSize="11" Foreground="{StaticResource Wv.Text3}" Text="{Binding Summary}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
             <!--  Rodapé  -->
             <Border Margin="0,6,0,0" Padding="8,6,8,8" BorderBrush="#26282D" BorderThickness="0,1,0,0">
                 <UniformGrid Columns="3">

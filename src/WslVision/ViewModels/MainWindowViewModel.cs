@@ -16,7 +16,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         MonitorViewModel monitor,
         TerminalViewModel terminal,
         MaintenanceViewModel maintenance,
-        SettingsViewModel settings)
+        SettingsViewModel settings,
+        AboutViewModel about)
     {
         State = state;
         Notifier = notifier;
@@ -26,12 +27,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Terminal = terminal;
         Maintenance = maintenance;
         Settings = settings;
+        About = about;
         // A Visão geral (o antigo Monitor, com o estado do ambiente) é a tela inicial.
         Pages = [monitor, containers, files, terminal, maintenance];
         _current = monitor;
         monitor.IsCurrent = true;
         // Uma aba pede para aparecer (terminal aberto de outra aba, logs escolhidos na paleta…).
-        foreach (var page in Pages.Append(settings))
+        foreach (var page in Pages.Append(settings).Append(about))
             page.ShowRequested += (s, _) => Current = (PageViewModel)s!;
         Palette = new PaletteViewModel(BuildPalette);
     }
@@ -42,15 +44,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>O que cada aba oferece, e por último a navegação com os atalhos de teclado.</summary>
     private IEnumerable<PaletteItem> BuildPalette()
     {
-        foreach (var item in Pages.SelectMany(p => p.PaletteItems()))
+        foreach (var item in Pages.Append(About).SelectMany(p => p.PaletteItems()))
             yield return item;
         var n = 1;
         foreach (var page in Pages)
             yield return GoTo(page, $"Ctrl {n++}");
         yield return GoTo(Settings, "Ctrl ,");
+        yield return GoTo(About, null);
     }
 
-    private PaletteItem GoTo(PageViewModel page, string keys) =>
+    private PaletteItem GoTo(PageViewModel page, string? keys) =>
         new(PaletteSection.GoTo, page.Title, null, page.Icon, () =>
         {
             Current = page;
@@ -67,6 +70,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public MaintenanceViewModel Maintenance { get; }
     public SettingsViewModel Settings { get; }
 
+    /// <summary>Sobre o app e a empresa. Abre a partir de Ajustes e da paleta; no menu, quem fica marcado é Ajustes.</summary>
+    public AboutViewModel About { get; }
+
+    public bool IsSettingsSection => Current == Settings || Current == About;
+
     /// <summary>As abas do menu lateral (Ajustes fica separado, no rodapé).</summary>
     public IReadOnlyList<PageViewModel> Pages { get; }
 
@@ -81,6 +89,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             oldValue.Deactivate();
         }
         newValue.IsCurrent = true;
+        OnPropertyChanged(nameof(IsSettingsSection));
         if (_windowVisible)
             newValue.Activate();
     }

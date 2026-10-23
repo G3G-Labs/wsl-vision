@@ -14,6 +14,7 @@ public static class PaletteSection
     public const string Actions = "Ações";
     public const string Projects = "Projetos";
     public const string Containers = "Containers";
+    public const string Terminal = "Terminal";
     public const string Folders = "Pastas";
     public const string GoTo = "Ir para";
 }

@@ -33,6 +33,8 @@ public sealed class AppSettings
     public bool CloseToTray { get; set; } = true;
     public List<string> Favorites { get; set; } = [];
     public List<string> RecentFolders { get; set; } = [];
+
+    /// <summary>Formato antigo dos comandos rápidos. Só é lido para migrar para os workspaces do Terminal (grupo "Comandos rápidos").</summary>
     public List<QuickCommand> QuickCommands { get; set; } = [];
 
     /// <summary>Projetos do Docker Compose que o "Iniciar ambiente" sobe junto com a distro e o Docker.</summary>
@@ -45,6 +47,9 @@ public sealed class AppSettings
     [JsonPropertyName("StartEnvironmentOnLaunch")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? LegacyStartEnvironmentOnLaunch { get; set; }
+
+    /// <summary>Nos terminais do app: autocomplete sem maiúsculas e histórico gravado a cada comando (só variáveis de ambiente).</summary>
+    public bool TerminalHelpers { get; set; } = true;
 
     /// <summary>Escala da interface (1 = 100%). 0 = seguir o "Tamanho do texto" do Windows.</summary>
     public double UiScale { get; set; }

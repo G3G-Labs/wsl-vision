@@ -164,6 +164,9 @@ public sealed partial class AppState : ObservableObject
         await RefreshAsync();
     }
 
+    /// <summary>O "Iniciar ambiente" completo terminou (distro, Docker e projetos): os workspaces marcados sobem agora.</summary>
+    public event EventHandler? EnvironmentReady;
+
     /// <summary>
     /// Um clique para trabalhar: liga a distro, o serviço do Docker e os containers dos projetos
     /// marcados para iniciar junto. Com <paramref name="upTo"/>, para antes (ex.: só a distro, ao abrir o app).
@@ -220,6 +223,7 @@ public sealed partial class AppState : ObservableObject
             }
 
             await RefreshAsync();
+            EnvironmentReady?.Invoke(this, EventArgs.Empty);
             return projects.Count == 0
                 ? "Ambiente pronto: distro e Docker ligados. Marque projetos em Containers para subirem juntos."
                 : started == 0
