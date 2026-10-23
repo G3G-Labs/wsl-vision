@@ -11,7 +11,7 @@
     <AssemblyName>WslVision</AssemblyName>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>WSL Vision</Product>
     <Company>G3G Labs</Company>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
