@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text;
 using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using WslVision.Models;
 using WslVision.Services;
 using WslVision.Services.Docker;
 using Wpf.Ui.Controls;
@@ -20,6 +22,10 @@ public enum ContainerFilter
     Error,
 }
 
+/// <summary>
+/// Aba Containers: busca e filtro sobre a lista do <see cref="ContainerInventory"/>, os logs do container escolhido
+/// e as ações de cada container. As ações de projeto inteiro e a lista em si ficam no inventário.
+/// </summary>
 public sealed partial class ContainersViewModel : PageViewModel
 {
     private const int MaxLogLines = 5000;
@@ -28,56 +34,40 @@ public sealed partial class ContainersViewModel : PageViewModel
     private readonly DockerManager _docker;
     private readonly DialogService _dialogs;
     private readonly Notifier _notifier;
-    private readonly LauncherService _launcher;
-    private readonly SettingsService _settings;
-    private readonly HashSet<string> _collapsed = [];
-    private readonly Dictionary<string, ContainerGroupViewModel> _groupsByKey = [];
-    // A lista muda pelos eventos do Docker; este timer lento só atualiza o "Ligado há" e cobre falhas do stream.
-    private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromSeconds(30) };
-    private readonly DispatcherTimer _eventDebounce = new() { Interval = TimeSpan.FromMilliseconds(400) };
-    private readonly MetricsService _metrics;
     private readonly TerminalViewModel _terminal;
-    private CancellationTokenSource? _eventsCts;
-    private bool _refreshPending;
+    private readonly ActivityLog _activity;
     private readonly DispatcherTimer _logFlushTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private readonly ConcurrentQueue<LogLineViewModel> _pendingLogs = new();
     private CancellationTokenSource? _logCts;
-    private bool _refreshing;
+    private readonly RetryBackoff _logBackoff = new(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30));
 
-    public ContainersViewModel(AppState state, DockerManager docker, DialogService dialogs, Notifier notifier, LauncherService launcher, SettingsService settings, MetricsService metrics,
-        TerminalViewModel terminal)
+    public ContainersViewModel(AppState state, ContainerInventory inventory, EnvironmentViewModel env, DockerManager docker,
+        DialogService dialogs, Notifier notifier, TerminalViewModel terminal, ActivityLog activity)
     {
-        _metrics = metrics;
-        _terminal = terminal;
         _state = state;
+        Inventory = inventory;
+        Env = env;
         _docker = docker;
         _dialogs = dialogs;
         _notifier = notifier;
-        _launcher = launcher;
-        _settings = settings;
+        _terminal = terminal;
+        _activity = activity;
 
         LogsView = CollectionViewSource.GetDefaultView(LogLines);
         LogsView.Filter = o => string.IsNullOrWhiteSpace(LogSearch)
             || (o is LogLineViewModel l && l.Text.Contains(LogSearch.Trim(), StringComparison.OrdinalIgnoreCase));
 
-        _refreshTimer.Tick += async (_, _) => await RefreshAsync();
-        _eventDebounce.Tick += async (_, _) =>
-        {
-            _eventDebounce.Stop();
-            await RefreshAsync();
-        };
         _logFlushTimer.Tick += (_, _) => FlushLogs();
+        inventory.Changed += (_, _) => OnInventoryChanged();
+        inventory.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ContainerInventory.HasLoaded))
+                NotifyListState();
+        };
         _state.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(AppState.IsDockerUp) or nameof(AppState.HasCheckedOnce))
-            {
-                OnPropertyChanged(nameof(ShowList));
-                OnPropertyChanged(nameof(ShowEmpty));
-                OnPropertyChanged(nameof(IsLoading));
-                if (IsActive)
-                    UpdateLiveSources();
-                OnPropertyChanged(nameof(ShowStartEnvironment));
-            }
+            if (e.PropertyName is nameof(AppState.IsDockerUp) or nameof(AppState.HasCheckedOnce) or nameof(AppState.DockerVersion))
+                NotifyListState();
         };
     }
 
@@ -87,9 +77,11 @@ public sealed partial class ContainersViewModel : PageViewModel
 
     public AppState State => _state;
 
-    public ObservableCollection<ContainerItemViewModel> Containers { get; } = [];
+    public ContainerInventory Inventory { get; }
 
-    /// <summary>Containers agrupados por projeto do Docker Compose; os avulsos ficam por último.</summary>
+    public EnvironmentViewModel Env { get; }
+
+    /// <summary>Projetos com algum container que passa na busca e no filtro.</summary>
     public ObservableCollection<ContainerGroupViewModel> Groups { get; } = [];
 
     public BoundedObservableCollection<LogLineViewModel> LogLines { get; } = new(MaxLogLines);
@@ -113,9 +105,7 @@ public sealed partial class ContainersViewModel : PageViewModel
     [NotifyPropertyChangedFor(nameof(LiveLabel), nameof(IsLive), nameof(PauseLabel))]
     private bool _isLogPaused;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading))]
-    private bool _hasLoaded;
+    private ObservableCollection<ContainerItemViewModel> Containers => Inventory.Containers;
 
     public bool HasSelection => Selected is not null;
 
@@ -137,14 +127,11 @@ public sealed partial class ContainersViewModel : PageViewModel
         ? $"Docker Engine{(_state.DockerVersion is { } v ? " " + v : "")} na distro {_state.Distro} · {CountRunning} de {CountAll} rodando"
         : $"Docker Engine na distro {_state.Distro}";
 
-    public bool ShowList => _state.IsDockerUp && HasLoaded && Groups.Count > 0;
+    public bool ShowList => _state.IsDockerUp && Inventory.HasLoaded && Groups.Count > 0;
 
-    public bool IsLoading => _state.IsDockerUp && !HasLoaded;
+    public bool IsLoading => _state.IsDockerUp && !Inventory.HasLoaded;
 
-    public bool ShowEmpty => _state.IsDockerUp && HasLoaded && Groups.Count == 0;
-
-    /// <summary>Mostra "Iniciar ambiente" quando há algo para ligar: Docker parado ou projeto marcado com container parado.</summary>
-    public bool ShowStartEnvironment => !_state.IsDockerUp || Groups.Any(g => g.IsStartup && g.AnyStopped);
+    public bool ShowEmpty => _state.IsDockerUp && Inventory.HasLoaded && Groups.Count == 0;
 
     public bool IsTotallyEmpty => Containers.Count == 0;
 
@@ -156,21 +143,15 @@ public sealed partial class ContainersViewModel : PageViewModel
 
     protected override void OnActivated()
     {
-        _refreshTimer.Start();
-        _metrics.Sampled += OnSampled;
-        UpdateLiveSources();
+        Inventory.Acquire(this);
         if (Selected is not null && _logCts is null)
             StartLogs(Selected);
     }
 
     protected override void OnDeactivated()
     {
-        _refreshTimer.Stop();
-        _eventDebounce.Stop();
-        _metrics.Sampled -= OnSampled;
-        _metrics.Unsubscribe(this);
-        StopEvents();
         StopLogs();
+        Inventory.Release(this);
     }
 
     partial void OnSearchChanged(string value) => ApplyFilter();
@@ -185,14 +166,28 @@ public sealed partial class ContainersViewModel : PageViewModel
             oldValue.IsSelected = false;
         if (newValue is not null)
             newValue.IsSelected = true;
-        var value = newValue;
         StopLogs();
+        _logBackoff.Reset();
         LogLines.Clear();
         _pendingLogs.Clear();
         LogSearch = "";
         IsLogPaused = false;
-        if (value is not null && IsActive)
-            StartLogs(value);
+        if (newValue is not null && IsActive)
+            StartLogs(newValue);
+    }
+
+    private void OnInventoryChanged()
+    {
+        if (Selected is { } sel && !Containers.Contains(sel))
+            Selected = null;
+        ApplyFilter();
+        // O container dos logs voltou a rodar (Iniciar, Reiniciar, compose up): retoma os logs ao vivo.
+        if (IsActive && Selected is { IsRunning: true } running && _logCts is null)
+        {
+            LogLines.Clear();
+            _pendingLogs.Clear();
+            StartLogs(running);
+        }
     }
 
     private bool Matches(ContainerItemViewModel c)
@@ -214,64 +209,19 @@ public sealed partial class ContainersViewModel : PageViewModel
 
     private void ApplyFilter()
     {
-        // Monta os grupos a partir de todos os containers (para o resumo) e mostra só os que passam no filtro.
-        var byKey = Containers
-            .GroupBy(c => c.ComposeProject ?? ContainerGroupViewModel.StandaloneKey)
-            .OrderBy(g => g.Key == ContainerGroupViewModel.StandaloneKey ? 1 : 0)
-            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var ordered = new List<ContainerGroupViewModel>();
-        foreach (var g in byKey)
+        var visibleGroups = new List<ContainerGroupViewModel>();
+        var q = Search.Trim();
+        foreach (var group in Inventory.Groups)
         {
-            if (!_groupsByKey.TryGetValue(g.Key, out var group))
-            {
-                var first = g.First();
-                group = new ContainerGroupViewModel(g.Key, first.ComposeProject, first.ComposeWorkingDir)
-                {
-                    IsExpanded = !_collapsed.Contains(g.Key),
-                };
-                group.PropertyChanged += (_, e) =>
-                {
-                    if (e.PropertyName == nameof(ContainerGroupViewModel.IsExpanded))
-                    {
-                        if (group.IsExpanded) _collapsed.Remove(group.Key);
-                        else _collapsed.Add(group.Key);
-                    }
-                };
-                _groupsByKey[g.Key] = group;
-            }
-            group.WorkingDir = g.Select(c => c.ComposeWorkingDir).FirstOrDefault(d => !string.IsNullOrEmpty(d));
-            group.IsStartup = group.Project is { } proj && _settings.Current.StartupProjects.Contains(proj);
-            group.WorkingDirLabel = group.WorkingDir is { } wd ? LinuxPaths.Pretty(wd, _settings.Current.LinuxHome) : null;
-            group.All.Clear();
-            group.All.AddRange(g.OrderBy(c => c.DisplayName, StringComparer.OrdinalIgnoreCase));
-            group.Recompute();
-
             var visible = group.All.Where(Matches).ToList();
             // Buscar pelo nome do projeto mostra o projeto inteiro.
-            var q = Search.Trim();
             if (visible.Count == 0 && q.Length > 0 && group.Title.Contains(q, StringComparison.OrdinalIgnoreCase) && Filter == ContainerFilter.All)
                 visible = [.. group.All];
             group.SetVisible(visible);
             if (visible.Count > 0)
-                ordered.Add(group);
+                visibleGroups.Add(group);
         }
-
-        foreach (var key in _groupsByKey.Keys.Where(k => byKey.All(g => g.Key != k)).ToList())
-            _groupsByKey.Remove(key);
-
-        for (var i = Groups.Count - 1; i >= 0; i--)
-            if (!ordered.Contains(Groups[i]))
-                Groups.RemoveAt(i);
-        for (var i = 0; i < ordered.Count; i++)
-        {
-            var cur = Groups.IndexOf(ordered[i]);
-            if (cur < 0)
-                Groups.Insert(i, ordered[i]);
-            else if (cur != i)
-                Groups.Move(cur, i);
-        }
+        Groups.SyncTo(visibleGroups);
         NotifyListState();
     }
 
@@ -288,136 +238,37 @@ public sealed partial class ContainersViewModel : PageViewModel
         OnPropertyChanged(nameof(CountStopped));
         OnPropertyChanged(nameof(CountError));
         OnPropertyChanged(nameof(Subtitle));
-        OnPropertyChanged(nameof(ShowStartEnvironment));
     }
 
-    [RelayCommand]
-    public async Task RefreshAsync()
+    public override IEnumerable<PaletteItem> PaletteItems()
     {
-        if (!IsActive || !_state.IsDockerUp || _docker.Client is not { } client)
-            return;
-        if (_refreshing)
+        foreach (var g in Inventory.Groups.Where(g => g.IsCompose))
         {
-            _refreshPending = true;
-            return;
-        }
-        _refreshing = true;
-        try
-        {
-            var list = await client.ListContainersAsync();
-            var byId = Containers.ToDictionary(c => c.Id);
-            var seen = new HashSet<string>();
-            foreach (var s in list.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
+            if (g.HasWorkingDir)
             {
-                seen.Add(s.Id);
-                if (byId.TryGetValue(s.Id, out var existing))
-                    existing.Update(s);
-                else
-                    Containers.Add(new ContainerItemViewModel(s));
+                yield return PaletteItem.For(PaletteSection.Projects, $"{g.Title} · Abrir no VS Code", g.WorkingDirLabel, SymbolRegular.Code24,
+                    Inventory.OpenGroupInVsCodeCommand, g);
+                yield return PaletteItem.For(PaletteSection.Projects, $"{g.Title} · Terminal na pasta", g.StatusLabel, SymbolRegular.WindowConsole20,
+                    OpenGroupTerminalCommand, g);
             }
-            foreach (var gone in Containers.Where(c => !seen.Contains(c.Id)).ToList())
-            {
-                Containers.Remove(gone);
-                if (Selected == gone)
-                    Selected = null;
-            }
-            HasLoaded = true;
-            ApplyFilter();
-            if (_metrics.Last is { } last)
-                ApplyUsage(last);
-            // O container dos logs voltou a rodar (Iniciar, Reiniciar, compose up): retoma os logs ao vivo.
-            if (Selected is { IsRunning: true } sel && _logCts is null)
-            {
-                LogLines.Clear();
-                _pendingLogs.Clear();
-                StartLogs(sel);
-            }
+            yield return g.AnyRunning
+                ? PaletteItem.For(PaletteSection.Projects, $"{g.Title} · Reiniciar", g.StatusLabel, SymbolRegular.ArrowClockwise24, Inventory.RestartGroupCommand, g)
+                : PaletteItem.For(PaletteSection.Projects, $"{g.Title} · Iniciar projeto", g.StatusLabel, SymbolRegular.Play24, Inventory.StartGroupCommand, g);
         }
-        catch (Exception ex) when (ex is DockerApiException or HttpRequestException or IOException or OperationCanceledException)
-        {
-            await _state.RefreshAsync();
-        }
-        finally
-        {
-            _refreshing = false;
-        }
-        if (_refreshPending)
-        {
-            _refreshPending = false;
-            await RefreshAsync();
-        }
-    }
 
-    /// <summary>Liga ou desliga as fontes ao vivo (eventos + métricas) conforme a aba e o Docker.</summary>
-    private void UpdateLiveSources()
-    {
-        if (IsActive && _state.IsDockerUp && _settings.Current.Distro is { } distro)
-        {
-            _metrics.Subscribe(this, distro);
-            _metrics.EnsureRunning(distro);
-            StartEvents();
-            _ = RefreshAsync();
-        }
-        else
-        {
-            _metrics.Unsubscribe(this);
-            StopEvents();
-        }
-    }
-
-    private void StartEvents()
-    {
-        if (_eventsCts is not null || _docker.Client is not { } client)
-            return;
-        var cts = new CancellationTokenSource();
-        _eventsCts = cts;
-        var dispatcher = System.Windows.Application.Current.Dispatcher;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await foreach (var _ in client.StreamContainerEventsAsync(cts.Token))
-                    await dispatcher.InvokeAsync(() =>
-                    {
-                        // Junta rajadas (ex.: compose up de 6 serviços) numa atualização só.
-                        _eventDebounce.Stop();
-                        _eventDebounce.Start();
-                    });
-            }
-            catch (Exception ex) when (ex is OperationCanceledException or IOException or HttpRequestException or DockerApiException)
-            {
-                // Aba fechada ou Docker desligado.
-            }
-            await dispatcher.InvokeAsync(async () =>
-            {
-                if (_eventsCts != cts)
-                    return;
-                // O stream caiu sem a aba pedir: confere o estado; se o Docker voltar, os eventos religam.
-                _eventsCts = null;
-                cts.Dispose();
-                await _state.RefreshAsync();
-            });
-        });
-    }
-
-    private void StopEvents()
-    {
-        var cts = _eventsCts;
-        _eventsCts = null;
-        if (cts is null)
-            return;
-        cts.Cancel();
-        cts.Dispose();
-    }
-
-    private void OnSampled(object? sender, LiveSample s) => ApplyUsage(s);
-
-    private void ApplyUsage(LiveSample s)
-    {
         foreach (var c in Containers)
-            c.SetUsage(s.Containers.GetValueOrDefault(c.Id));
-        foreach (var g in Groups)
-            g.Recompute();
+        {
+            var where = c.ComposeProject is { } p ? $"{p} · {c.Image}" : c.Image;
+            var target = c;
+            yield return new PaletteItem(PaletteSection.Containers, $"{c.DisplayName} · Ver logs", where, SymbolRegular.DocumentText24, () =>
+            {
+                RequestShow();
+                Selected = target;
+                return Task.CompletedTask;
+            });
+            if (c.PortUrl is not null)
+                yield return PaletteItem.For(PaletteSection.Containers, $"{c.DisplayName} · Abrir {c.PortText}", where, SymbolRegular.Open24, OpenPortCommand, c);
+        }
     }
 
     [RelayCommand]
@@ -447,74 +298,12 @@ public sealed partial class ContainersViewModel : PageViewModel
     private void ShowLogs(ContainerItemViewModel c) => Selected = Selected == c ? null : c;
 
     [RelayCommand]
-    private async Task StartEnvironmentAsync()
-    {
-        try
-        {
-            _notifier.Show(await _state.StartEnvironmentAsync());
-            await RefreshAsync();
-        }
-        catch (Exception ex)
-        {
-            _notifier.Error(ex);
-        }
-        OnPropertyChanged(nameof(ShowStartEnvironment));
-    }
-
-    // ---- Ações no projeto inteiro (Compose) ----
-
-    [RelayCommand]
-    private void ToggleStartup(ContainerGroupViewModel g)
-    {
-        if (g.Project is not { } project)
-            return;
-        var on = !_settings.Current.StartupProjects.Contains(project);
-        _settings.Update(s =>
-        {
-            s.StartupProjects.Remove(project);
-            if (on)
-                s.StartupProjects.Add(project);
-        });
-        g.IsStartup = on;
-        OnPropertyChanged(nameof(ShowStartEnvironment));
-        _notifier.Show(on ? $"{project} vai subir junto no Iniciar ambiente" : $"{project} não sobe mais junto no Iniciar ambiente");
-    }
-
-    [RelayCommand]
     private void ToggleGroup(ContainerGroupViewModel g) => g.IsExpanded = !g.IsExpanded;
-
-    [RelayCommand]
-    private Task StartGroupAsync(ContainerGroupViewModel g) =>
-        ActOnGroup(g, g.All.Where(c => !c.IsRunning), ComposeRunner.StartAsync, $"{g.Title}: containers iniciados");
-
-    [RelayCommand]
-    private Task StopGroupAsync(ContainerGroupViewModel g) =>
-        ActOnGroup(g, g.All.Where(c => c.IsRunning), ComposeRunner.StopAsync, $"{g.Title}: containers parados");
-
-    [RelayCommand]
-    private Task RestartGroupAsync(ContainerGroupViewModel g) =>
-        ActOnGroup(g, g.All.Where(c => c.IsRunning), ComposeRunner.RestartAsync, $"{g.Title}: containers reiniciados");
-
-    [RelayCommand]
-    private void OpenGroupInVsCode(ContainerGroupViewModel g)
-    {
-        if (_settings.Current.Distro is not { } distro || g.WorkingDir is not { } dir)
-            return;
-        try
-        {
-            _launcher.OpenInVsCode(distro, dir);
-            _notifier.Show($"Abrindo {g.Title} no VS Code");
-        }
-        catch (Exception ex)
-        {
-            _notifier.Error(ex);
-        }
-    }
 
     [RelayCommand]
     private async Task OpenGroupTerminalAsync(ContainerGroupViewModel g)
     {
-        if (_settings.Current.Distro is not { } distro || g.WorkingDir is not { } dir)
+        if (g.WorkingDir is not { } dir)
             return;
         try
         {
@@ -524,36 +313,6 @@ public sealed partial class ContainersViewModel : PageViewModel
         {
             _notifier.Error(ex);
         }
-    }
-
-    private async Task ActOnGroup(ContainerGroupViewModel g, IEnumerable<ContainerItemViewModel> targets,
-        Func<DockerClient, IReadOnlyList<ComposeMember>, CancellationToken, Task> action, string done)
-    {
-        if (_docker.Client is not { } client)
-            return;
-        var list = targets.ToList();
-        if (list.Count == 0)
-            return;
-        g.IsBusy = true;
-        foreach (var c in list)
-            c.IsBusy = true;
-        try
-        {
-            // Na ordem do depends_on; containers da mesma onda vão em paralelo.
-            await action(client, list.Select(c => c.Member).ToList(), CancellationToken.None);
-            _notifier.Show(done);
-        }
-        catch (Exception ex)
-        {
-            _notifier.Error(ex);
-        }
-        finally
-        {
-            foreach (var c in list)
-                c.IsBusy = false;
-            g.IsBusy = false;
-        }
-        await RefreshAsync();
     }
 
     [RelayCommand]
@@ -606,12 +365,7 @@ public sealed partial class ContainersViewModel : PageViewModel
             IsBusy = true;
             await _state.SetDockerAsync(!_state.IsDockerUp);
             _notifier.Show(_state.IsDockerUp ? "Docker ligado" : "Docker desligado");
-            if (!_state.IsDockerUp)
-            {
-                Containers.Clear();
-                Selected = null;
-                HasLoaded = false;
-            }
+            _activity.Add(_state.IsDockerUp ? "Docker ligado" : "Docker desligado", _state.IsDockerUp ? Tone.Ok : Tone.Off);
         }
         catch (Exception ex)
         {
@@ -659,7 +413,7 @@ public sealed partial class ContainersViewModel : PageViewModel
         {
             c.IsBusy = false;
         }
-        await RefreshAsync();
+        await Inventory.RefreshAsync();
         if (Selected == c && c.IsRunning && _logCts is null)
             StartLogs(c);
     }
@@ -672,42 +426,51 @@ public sealed partial class ContainersViewModel : PageViewModel
         var cts = new CancellationTokenSource();
         _logCts = cts;
         _logFlushTimer.Start();
+        var started = Stopwatch.GetTimestamp();
         var dispatcher = System.Windows.Application.Current.Dispatcher;
-        _ = Task.Run(async () =>
-        {
-            try
+        _ = LiveStream.RunAsync(
+            ct => client.StreamLogsAsync(c.Id, tail: 500, ct),
+            a => dispatcher.InvokeAsync(a).Task,
+            line =>
             {
-                await foreach (var line in client.StreamLogsAsync(c.Id, tail: 500, cts.Token))
+                var isErr = line.IsStdErr
+                    || line.Text.Contains("error", StringComparison.OrdinalIgnoreCase)
+                    || line.Text.Contains("exception", StringComparison.OrdinalIgnoreCase);
+                _pendingLogs.Enqueue(new LogLineViewModel(line.Time?.ToString("HH:mm:ss") ?? "", line.Text, isErr));
+                // Pausado não pode virar vazamento: guarda no máximo as últimas MaxLogLines linhas.
+                while (_pendingLogs.Count > MaxLogLines && _pendingLogs.TryDequeue(out _))
                 {
-                    // Trocou de container: linhas que ainda estavam no buffer não podem aparecer no novo.
-                    if (cts.IsCancellationRequested)
-                        break;
-                    var isErr = line.IsStdErr
-                        || line.Text.Contains("error", StringComparison.OrdinalIgnoreCase)
-                        || line.Text.Contains("exception", StringComparison.OrdinalIgnoreCase);
-                    _pendingLogs.Enqueue(new LogLineViewModel(line.Time?.ToString("HH:mm:ss") ?? "", line.Text, isErr));
-                    // Pausado não pode virar vazamento: guarda no máximo as últimas MaxLogLines linhas.
-                    while (_pendingLogs.Count > MaxLogLines && _pendingLogs.TryDequeue(out _))
-                    {
-                    }
                 }
-            }
-            catch (Exception ex) when (ex is OperationCanceledException or IOException or HttpRequestException or DockerApiException)
-            {
-                // Container parou, Docker desligou ou o painel de logs foi fechado.
-            }
-            // Stream acabou sozinho (ex.: container parou): libera para religar quando ele voltar.
-            await dispatcher.InvokeAsync(() =>
-            {
-                if (_logCts != cts)
-                    return;
-                FlushLogs();
-                _logFlushTimer.Stop();
-                _logCts = null;
-                cts.Dispose();
-                OnPropertyChanged(nameof(LiveLabel));
-            });
-        });
+                return Task.CompletedTask;
+            },
+            error => OnLogsEnded(cts, c, error, started),
+            cts.Token);
+    }
+
+    /// <summary>
+    /// O fluxo de logs acabou. Sozinho e sem erro, o container parou: a lista avisa quando ele voltar a rodar.
+    /// Com erro e o container ainda rodando (ex.: o túnel do dial-stdio morreu), religa do zero, com espera crescente.
+    /// </summary>
+    private async void OnLogsEnded(CancellationTokenSource cts, ContainerItemViewModel c, Exception? error, long started)
+    {
+        if (_logCts != cts)
+            return;
+        FlushLogs();
+        _logFlushTimer.Stop();
+        _logCts = null;
+        cts.Dispose();
+        OnPropertyChanged(nameof(LiveLabel));
+        if (error is null)
+            return;
+        if (Stopwatch.GetElapsedTime(started) > TimeSpan.FromMinutes(1))
+            _logBackoff.Reset();
+        await Task.Delay(_logBackoff.Next());
+        if (IsActive && Selected == c && c.IsRunning && _logCts is null)
+        {
+            LogLines.Clear();
+            _pendingLogs.Clear();
+            StartLogs(c);
+        }
     }
 
     private void StopLogs()

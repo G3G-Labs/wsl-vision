@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WslVision.Models;
@@ -11,8 +10,6 @@ using Wpf.Ui.Controls;
 
 namespace WslVision.ViewModels;
 
-public sealed record ContainerUsageRow(string Name, string Cpu, string Memory, double Percent);
-
 public sealed partial class MonitorViewModel : PageViewModel
 {
     private const int HistoryLength = 30; // 30 amostras × 2 s = último minuto
@@ -20,12 +17,9 @@ public sealed partial class MonitorViewModel : PageViewModel
     private readonly AppState _state;
     private readonly MetricsService _metrics;
     private readonly WslConfigService _wslConfig;
-    private readonly DockerManager _docker;
     private readonly SettingsService _settings;
     private readonly DialogService _dialogs;
     private readonly Notifier _notifier;
-    private readonly DispatcherTimer _containersTimer = new() { Interval = TimeSpan.FromSeconds(15) };
-    private readonly Dictionary<string, string> _containerNames = [];
     private readonly Queue<double> _cpuHistory = new();
     private WslLimits _savedLimits = new(null, null, false);
     // O que os controles mostraram ao carregar (já com o padrão e os limites do PC aplicados).
@@ -33,19 +27,23 @@ public sealed partial class MonitorViewModel : PageViewModel
     private bool _loadingLimits;
     private int _sampleCount;
 
-    public MonitorViewModel(AppState state, MetricsService metrics, WslConfigService wslConfig, DockerManager docker,
-        SettingsService settings, DialogService dialogs, Notifier notifier)
+    public MonitorViewModel(AppState state, MetricsService metrics, WslConfigService wslConfig, SettingsService settings,
+        DialogService dialogs, Notifier notifier, ContainerInventory inventory, EnvironmentViewModel env, ActivityLog activity)
     {
+        Inventory = inventory;
+        Env = env;
+        Activity = activity;
+        env.PropertyChanged += (_, _) => OnPropertyChanged(nameof(EnvSubtitle));
+        inventory.Changed += (_, _) => UpdateTop();
+        inventory.UsageChanged += (_, _) => UpdateTop();
         _state = state;
         _metrics = metrics;
         _wslConfig = wslConfig;
-        _docker = docker;
         _settings = settings;
         _dialogs = dialogs;
         _notifier = notifier;
         TotalRamGb = Math.Max(1, (int)Math.Round(MetricsService.GetTotalPhysicalMemory() / 1024d / 1024 / 1024));
         CpuCount = Environment.ProcessorCount;
-        _containersTimer.Tick += async (_, _) => await RefreshContainerNamesAsync();
         TopContainers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoContainers));
         state.PropertyChanged += (_, e) =>
         {
@@ -54,9 +52,43 @@ public sealed partial class MonitorViewModel : PageViewModel
         };
     }
 
-    public override string Title => "Monitor";
+    public override string Title => "Visão geral";
 
-    public override SymbolRegular Icon => SymbolRegular.Pulse24;
+    public override SymbolRegular Icon => SymbolRegular.Board24;
+
+    // ---- Ambiente (estado e ações vêm do EnvironmentViewModel), projetos e atividade ----
+
+    public EnvironmentViewModel Env { get; }
+
+    public ContainerInventory Inventory { get; }
+
+    public ActivityLog Activity { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EnvSubtitle))]
+    private double _uptimeSeconds;
+
+    [ObservableProperty]
+    private bool _isLimitsOpen;
+
+    /// <summary>A frase do ambiente, com há quanto tempo a distro está ligada na frente.</summary>
+    public string EnvSubtitle => !Env.IsStarting && _state.IsDistroRunning && UptimeSeconds > 0
+        ? $"Ligado há {Formatting.Duration(UptimeSeconds)} · {Env.Detail}"
+        : Env.Detail;
+
+    public string LimitsSummary
+    {
+        get
+        {
+            var reclaim = _shownLimits.AutoMemoryReclaim ? " · devolve memória ociosa" : "";
+            return $"{_shownLimits.MemoryGb ?? DefaultMemoryGb} GB · {_shownLimits.Processors ?? CpuCount} processadores{reclaim}";
+        }
+    }
+
+    public override IEnumerable<PaletteItem> PaletteItems() => Env.PaletteItems();
+
+    [RelayCommand]
+    private void ToggleLimits() => IsLimitsOpen = !IsLimitsOpen;
 
     public AppState State => _state;
 
@@ -64,7 +96,7 @@ public sealed partial class MonitorViewModel : PageViewModel
 
     public int CpuCount { get; }
 
-    public ObservableCollection<ContainerUsageRow> TopContainers { get; } = [];
+    public ObservableCollection<ContainerItemViewModel> TopContainers { get; } = [];
 
     public bool HasNoContainers => TopContainers.Count == 0;
 
@@ -133,39 +165,20 @@ public sealed partial class MonitorViewModel : PageViewModel
         _notifier.Show(IsDirty ? "Valores recomendados aplicados. Clique em Salvar e reiniciar o WSL para valer." : "Os limites já estão no recomendado.");
     }
 
-    public string DockerSummary => _state.IsDockerUp
-        ? $"Ligado{(_state.DockerVersion is { } v ? " · versão " + v : "")}"
-        : _state.IsDistroRunning ? "Desligado" : "Distro desligada";
-
     protected override void OnActivated()
     {
+        Inventory.Acquire(this);
         LoadLimits();
-        _state.PropertyChanged += OnStateChanged;
         _metrics.Sampled += OnSampled;
         UpdateStreaming();
+        UpdateTop();
     }
 
     protected override void OnDeactivated()
     {
-        _state.PropertyChanged -= OnStateChanged;
+        Inventory.Release(this);
         _metrics.Sampled -= OnSampled;
         _metrics.Unsubscribe(this);
-        _containersTimer.Stop();
-    }
-
-    private void OnStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(AppState.IsDockerUp) or nameof(AppState.StatusText))
-        {
-            OnPropertyChanged(nameof(DockerSummary));
-            if (_state.IsDockerUp)
-                _ = RefreshContainerNamesAsync();
-            else
-            {
-                _containerNames.Clear();
-                TopContainers.Clear();
-            }
-        }
     }
 
     private void UpdateStreaming()
@@ -177,20 +190,28 @@ public sealed partial class MonitorViewModel : PageViewModel
             _sampleCount = 0;
             _metrics.Subscribe(this, distro);
             _metrics.EnsureRunning(distro);
-            _containersTimer.Start();
-            _ = RefreshContainerNamesAsync();
             if (_metrics.Last is { } last)
                 OnSample(last);
         }
         else
         {
             _metrics.Unsubscribe(this);
-            _containersTimer.Stop();
             HasSample = false;
-            TopContainers.Clear();
             VmmemText = "—";
             VmmemPercent = 0;
         }
+    }
+
+    /// <summary>Quem mais usa memória: os containers do inventário, que já trazem o consumo da última amostra.</summary>
+    private void UpdateTop()
+    {
+        if (!IsActive)
+            return;
+        TopContainers.SyncTo(Inventory.Containers
+            .Where(c => c.IsRunning && c.MemoryBytes > 0)
+            .OrderByDescending(c => c.MemoryBytes)
+            .Take(8)
+            .ToList());
     }
 
     private void OnSampled(object? sender, LiveSample s) => OnSample(s);
@@ -200,6 +221,7 @@ public sealed partial class MonitorViewModel : PageViewModel
         if (!IsActive)
             return;
         var s = sample.Wsl;
+        UptimeSeconds = s.UptimeSeconds;
         HasSample = true;
         MemUsedText = Formatting.Gb(s.MemUsedBytes);
         MemTotalText = $"de {Formatting.Gb(s.MemTotalBytes)}";
@@ -230,47 +252,6 @@ public sealed partial class MonitorViewModel : PageViewModel
             VmmemText = Formatting.Gb(vm);
             VmmemPercent = 100.0 * vm / (TotalRamGb * 1024d * 1024 * 1024);
         }
-
-        // Consumo por container vem da mesma leitura (cgroups); a API do Docker só dá os nomes.
-        var rows = sample.Containers
-            .Where(kv => _containerNames.ContainsKey(kv.Key))
-            .OrderByDescending(kv => kv.Value.MemoryBytes)
-            .Take(8)
-            .ToList();
-        var max = rows.Count > 0 ? Math.Max(1, rows.Max(r => r.Value.MemoryBytes)) : 1;
-        // Atualiza linha a linha: só as que mudaram são redesenhadas, em vez de recriar a lista a cada 2 s.
-        for (var r = 0; r < rows.Count; r++)
-        {
-            var (id, u) = rows[r];
-            var row = new ContainerUsageRow(_containerNames[id], Formatting.Percent(u.CpuPercent), Formatting.Bytes(u.MemoryBytes), 100.0 * u.MemoryBytes / max);
-            if (r >= TopContainers.Count)
-                TopContainers.Add(row);
-            else if (TopContainers[r] != row)
-                TopContainers[r] = row;
-        }
-        while (TopContainers.Count > rows.Count)
-            TopContainers.RemoveAt(TopContainers.Count - 1);
-    }
-
-    /// <summary>Nomes dos containers (a cada 15 s): uma chamada leve numa conexão já aberta.</summary>
-    private async Task RefreshContainerNamesAsync()
-    {
-        if (!IsActive || !_state.IsDockerUp || _docker.Client is not { } client)
-            return;
-        try
-        {
-            var list = await client.ListContainersAsync();
-            _containerNames.Clear();
-            foreach (var c in list.Where(c => c.State == "running"))
-                _containerNames[c.Id] = c.Labels?.GetValueOrDefault("com.docker.compose.service") is { Length: > 0 } svc
-                    && c.Labels.GetValueOrDefault("com.docker.compose.project") is { Length: > 0 } proj
-                        ? $"{svc} ({proj})"
-                        : c.Name;
-        }
-        catch
-        {
-            // Docker parou entre uma leitura e outra; o AppState atualiza o estado.
-        }
     }
 
     private void LoadLimits()
@@ -283,6 +264,7 @@ public sealed partial class MonitorViewModel : PageViewModel
             Processors = Math.Clamp(_savedLimits.Processors ?? CpuCount, 1, CpuCount);
             AutoMemoryReclaim = _savedLimits.AutoMemoryReclaim;
             _shownLimits = new WslLimits((int)MemoryLimitGb, (int)Processors, AutoMemoryReclaim);
+            OnPropertyChanged(nameof(LimitsSummary));
         }
         catch (Exception ex)
         {
@@ -321,7 +303,6 @@ public sealed partial class MonitorViewModel : PageViewModel
             _wslConfig.Write(limits, _savedLimits);
             _settings.RecordChange(ConfigChangeKind.WslConfigEdited, null);
             // Nada pode consultar a distro durante o desligamento (isso a religaria).
-            _containersTimer.Stop();
             _metrics.Stop();
             var wasRunning = _state.IsDistroRunning;
             await _state.ShutdownWslAsync();
@@ -361,92 +342,6 @@ public sealed partial class MonitorViewModel : PageViewModel
         catch (Exception ex)
         {
             _notifier.Error(ex);
-        }
-    }
-
-    [RelayCommand]
-    private async Task ShutdownWsl()
-    {
-        if (!await _dialogs.ConfirmAsync("Desligar o WSL?",
-                $"Todas as distros param, junto com os containers e terminais abertos nelas. Isso devolve cerca de {VmmemText} ao Windows.",
-                "Desligar"))
-            return;
-        IsBusy = true;
-        try
-        {
-            // Nada pode consultar a distro durante o desligamento (isso a religaria).
-            _containersTimer.Stop();
-            _metrics.Stop();
-            await _state.ShutdownWslAsync();
-            _notifier.Show("WSL desligado. A memória voltou para o Windows.");
-        }
-        catch (Exception ex)
-        {
-            _notifier.Error(ex);
-        }
-        finally
-        {
-            IsBusy = false;
-            UpdateStreaming();
-        }
-    }
-
-    [RelayCommand]
-    private async Task StartDistro()
-    {
-        IsBusy = true;
-        try
-        {
-            await _state.StartDistroAsync();
-        }
-        catch (Exception ex)
-        {
-            _notifier.Error(ex);
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    [RelayCommand]
-    private async Task ToggleDocker()
-    {
-        IsBusy = true;
-        try
-        {
-            await _state.SetDockerAsync(!_state.IsDockerUp);
-        }
-        catch (Exception ex)
-        {
-            _notifier.Error(ex);
-        }
-        finally
-        {
-            IsBusy = false;
-            OnPropertyChanged(nameof(DockerSummary));
-        }
-    }
-
-    [RelayCommand]
-    private async Task RestartDocker()
-    {
-        if (_settings.Current.Distro is not { } distro)
-            return;
-        IsBusy = true;
-        try
-        {
-            await _docker.RestartServiceAsync(distro);
-            await _state.RefreshAsync();
-            _notifier.Show("Docker reiniciado");
-        }
-        catch (Exception ex)
-        {
-            _notifier.Error(ex);
-        }
-        finally
-        {
-            IsBusy = false;
         }
     }
 }

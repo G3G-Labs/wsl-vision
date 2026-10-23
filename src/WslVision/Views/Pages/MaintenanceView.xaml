@@ -39,8 +39,12 @@
         <StackPanel Margin="32,28,32,24">
             <!--  Cabeçalho  -->
             <DockPanel Margin="0,0,0,20">
-                <ui:Button VerticalAlignment="Bottom" Appearance="Secondary" Command="{Binding AnalyzeCommand}" Content="Analisar de novo" DockPanel.Dock="Right"
-                           Icon="{ui:SymbolIcon ArrowSync24}" IsEnabled="{Binding CanAnalyze}" />
+                <Button VerticalAlignment="Bottom" Command="{Binding AnalyzeCommand}" DockPanel.Dock="Right" IsEnabled="{Binding CanAnalyze}" Style="{StaticResource BtnSecondary}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Margin="0,0,7,0" FontSize="14" Symbol="ArrowSync24" />
+                        <TextBlock VerticalAlignment="Center" Text="Analisar de novo" />
+                    </StackPanel>
+                </Button>
                 <StackPanel>
                     <TextBlock Style="{StaticResource PageTitle}" Text="Manutenção" />
                     <TextBlock Margin="0,4,0,0" Style="{StaticResource Secondary}" Text="Libere espaço e memória do WSL e do Docker. Nada é apagado sem você ver o que é e confirmar." />
@@ -53,7 +57,12 @@
                     <TextBlock HorizontalAlignment="Center" Style="{StaticResource SectionTitle}" Text="A distro está desligada" />
                     <TextBlock MaxWidth="460" Margin="0,4,0,12" HorizontalAlignment="Center" Style="{StaticResource Secondary}" TextAlignment="Center"
                                Text="Ligue a distro para ver o que dá para limpar. A compactação do disco funciona com ela desligada." />
-                    <ui:Button HorizontalAlignment="Center" Appearance="Primary" Command="{Binding StartDistroCommand}" Content="Ligar a distro" Icon="{ui:SymbolIcon Power24}" />
+                    <Button HorizontalAlignment="Center" Command="{Binding StartDistroCommand}" Style="{StaticResource BtnPrimary}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Margin="0,0,7,0" FontSize="13" Filled="True" Symbol="Play24" />
+                            <TextBlock VerticalAlignment="Center" Text="Ligar a distro" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Border>
 
@@ -81,7 +90,7 @@
                                    Visibility="{Binding ShowDocker, Converter={StaticResource InverseBoolToVis}}" />
                         <StackPanel Visibility="{Binding ShowDocker, Converter={StaticResource BoolToVis}}">
                             <ItemsControl Margin="0,8,0,12" ItemTemplate="{StaticResource CleanupRow}" ItemsSource="{Binding DockerItems}" />
-                            <Button HorizontalAlignment="Left" Command="{Binding CleanDockerCommand}" Height="34" Style="{StaticResource TintCritical}">
+                            <Button HorizontalAlignment="Left" Command="{Binding CleanDockerCommand}" Height="34" Style="{StaticResource BtnDanger}">
                                 <StackPanel Orientation="Horizontal">
                                     <ui:SymbolIcon Margin="0,0,6,0" FontSize="16" Symbol="Broom24" />
                                     <TextBlock VerticalAlignment="Center" Text="{Binding DockerSelectedText}" />
@@ -102,7 +111,7 @@
                             </StackPanel>
                         </DockPanel>
                         <ItemsControl Margin="0,8,0,12" ItemTemplate="{StaticResource CleanupRow}" ItemsSource="{Binding LinuxItems}" />
-                        <Button HorizontalAlignment="Left" Command="{Binding CleanLinuxCommand}" Height="34" Style="{StaticResource TintCritical}">
+                        <Button HorizontalAlignment="Left" Command="{Binding CleanLinuxCommand}" Height="34" Style="{StaticResource BtnDanger}">
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Margin="0,0,6,0" FontSize="16" Symbol="Broom24" />
                                 <TextBlock VerticalAlignment="Center" Text="{Binding LinuxSelectedText}" />
@@ -132,7 +141,7 @@
                                 <TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding PageCacheText}" />
                             </StackPanel>
                         </Grid>
-                        <Button HorizontalAlignment="Left" Command="{Binding FreeMemoryCommand}" Height="34" IsEnabled="{Binding CanAnalyze}" Style="{StaticResource TintAccent}">
+                        <Button HorizontalAlignment="Left" Command="{Binding FreeMemoryCommand}" Height="34" IsEnabled="{Binding CanAnalyze}" Style="{StaticResource BtnSecondary}">
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Margin="0,0,6,0" FontSize="16" Symbol="ArrowMinimize24" />
                                 <TextBlock VerticalAlignment="Center" Text="Liberar memória agora" />
@@ -164,7 +173,7 @@
                                 <TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding DiskUsedText}" />
                             </StackPanel>
                         </Grid>
-                        <Button HorizontalAlignment="Left" Command="{Binding CompactDiskCommand}" Height="34" IsEnabled="{Binding VhdPath, Converter={StaticResource NotNull}}" Style="{StaticResource TintCaution}">
+                        <Button HorizontalAlignment="Left" Command="{Binding CompactDiskCommand}" Height="34" IsEnabled="{Binding VhdPath, Converter={StaticResource NotNull}}" Style="{StaticResource BtnSecondary}">
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Margin="0,0,6,0" FontSize="16" Symbol="Shield24" />
                                 <TextBlock VerticalAlignment="Center" Text="Compactar disco" />

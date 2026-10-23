@@ -4,237 +4,385 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:svc="clr-namespace:WslVision.Services"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:vm="clr-namespace:WslVision.ViewModels"
     d:DataContext="{d:DesignInstance Type=vm:MonitorViewModel}"
     mc:Ignorable="d">
 
+    <!--  Visão geral: o ambiente numa frase, quatro números de consumo, projetos, quem mais usa e o que aconteceu  -->
     <UserControl.Resources>
-        <Style x:Key="Meter" TargetType="ProgressBar" BasedOn="{StaticResource {x:Type ProgressBar}}">
+        <Style x:Key="Tile" TargetType="Border" BasedOn="{StaticResource CardBorder}">
+            <Setter Property="Padding" Value="16,14,16,16" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+        </Style>
+        <Style x:Key="Meter" TargetType="ProgressBar">
             <Setter Property="Height" Value="6" />
             <Setter Property="Minimum" Value="0" />
             <Setter Property="Maximum" Value="100" />
-            <Setter Property="Margin" Value="0,8,0,8" />
+            <Setter Property="Margin" Value="0,11,0,11" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid>
+                            <Border Background="{StaticResource Wv.Track}" CornerRadius="3" />
+                            <Border x:Name="PART_Track" />
+                            <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{StaticResource Wv.Accent}" CornerRadius="3" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
-        <Style x:Key="Tile" TargetType="Border" BasedOn="{StaticResource CardBorder}">
-            <Setter Property="Padding" Value="18,16" />
-            <Setter Property="Margin" Value="0,0,16,16" />
+        <!--  Etapa da sequência distro → Docker → projetos  -->
+        <Style x:Key="StepChip" TargetType="Border">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="10,0,12,0" />
+            <Setter Property="Background" Value="{StaticResource Wv.Inset}" />
+            <Setter Property="BorderBrush" Value="#26282D" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
         </Style>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,28,16,24">
-            <DockPanel Margin="0,0,16,20">
-                <ui:Button
-                    VerticalAlignment="Bottom"
-                    Appearance="Secondary"
-                    Command="{Binding ShutdownWslCommand}"
-                    Content="Desligar o WSL"
-                    DockPanel.Dock="Right"
-                    Icon="{ui:SymbolIcon Power24}"
-                    Visibility="{Binding State.IsDistroRunning, Converter={StaticResource BoolToVis}}" />
-                <StackPanel>
-                    <TextBlock Style="{StaticResource PageTitle}" Text="Monitoramento" />
-                    <TextBlock Margin="0,4,0,0" Style="{StaticResource Secondary}" Text="Atualiza a cada 2 s enquanto esta aba está aberta. Nada é lido em segundo plano." />
-                </StackPanel>
+        <StackPanel Margin="28,24,28,28">
+            <DockPanel Margin="0,0,0,16">
+                <TextBlock VerticalAlignment="Bottom" DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}"
+                           Text="Atualiza a cada 2 s enquanto esta tela está aberta · nada é lido na bandeja" />
+                <TextBlock Style="{StaticResource PageTitle}" Text="Visão geral" />
             </DockPanel>
 
-            <!--  WSL desligado  -->
-            <Border Margin="0,0,16,0" Style="{StaticResource EmptyState}" Visibility="{Binding State.IsDistroOff, Converter={StaticResource BoolToVis}}">
-                <StackPanel HorizontalAlignment="Center">
-                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="40" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Symbol="Power24" />
-                    <TextBlock Margin="0,12,0,4" HorizontalAlignment="Center" Style="{StaticResource SectionTitle}" Text="A distro está desligada" />
-                    <TextBlock MaxWidth="460" HorizontalAlignment="Center" Style="{StaticResource Secondary}" TextAlignment="Center"
-                               Text="A memória foi devolvida ao Windows. O app não liga a distro sozinho: ela só volta quando você pedir." />
-                    <ui:Button Margin="0,16,0,0" HorizontalAlignment="Center" Appearance="Primary" Command="{Binding StartDistroCommand}" Content="Ligar a distro" Icon="{ui:SymbolIcon Play24}" />
-                </StackPanel>
-            </Border>
-
-            <StackPanel Visibility="{Binding State.IsDistroRunning, Converter={StaticResource BoolToVis}}">
-                <UniformGrid Columns="4">
-                    <Border Style="{StaticResource Tile}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource ColumnHeader}" Text="Memória do WSL" />
-                            <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
-                                <TextBlock Style="{StaticResource BigNumber}" Text="{Binding MemUsedText}" />
-                                <TextBlock Margin="6,0,0,6" VerticalAlignment="Bottom" Style="{StaticResource Secondary}" Text="{Binding MemTotalText}" />
-                            </StackPanel>
-                            <ProgressBar AutomationProperties.Name="Memória do WSL em uso" Style="{StaticResource Meter}" Value="{Binding MemPercent, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource Caption}" Text="Em uso dentro da distro" />
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource Tile}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource ColumnHeader}" Text="CPU do WSL" />
-                            <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
-                                <TextBlock Style="{StaticResource BigNumber}" Text="{Binding CpuText}" />
-                                <TextBlock Margin="6,0,0,6" VerticalAlignment="Bottom" Style="{StaticResource Secondary}">
-                                    <Run Text="de " /><Run Text="{Binding Processors, Mode=OneWay, StringFormat=0}" /><Run Text=" núcleos" />
-                                </TextBlock>
-                            </StackPanel>
-                            <Viewbox Height="34" Margin="0,4,0,2" Stretch="Fill">
-                                <Canvas Width="120" Height="40" ToolTip="CPU no último minuto">
-                                    <Line X1="0" X2="120" Y1="39.5" Y2="39.5" Stroke="{DynamicResource DividerStrokeColorDefaultBrush}" StrokeThickness="1" />
-                                    <Polyline Points="{Binding CpuPoints}" Stroke="{DynamicResource AccentTextFillColorPrimaryBrush}" StrokeLineJoin="Round" StrokeThickness="2" />
-                                </Canvas>
-                            </Viewbox>
-                            <TextBlock Style="{StaticResource Caption}" Text="Último minuto" />
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource Tile}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource ColumnHeader}" Text="Disco da distro" />
-                            <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
-                                <TextBlock Style="{StaticResource BigNumber}" Text="{Binding DiskUsedText}" />
-                                <TextBlock Margin="6,0,0,6" VerticalAlignment="Bottom" Style="{StaticResource Secondary}" Text="usados" />
-                            </StackPanel>
-                            <ProgressBar AutomationProperties.Name="Disco da distro em uso" Style="{StaticResource Meter}" Value="{Binding DiskPercent, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource Caption}" Text="{Binding DiskSizeText}" />
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource Tile}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource ColumnHeader}" Text="vmmemWSL no Windows" />
-                            <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
-                                <TextBlock Style="{StaticResource BigNumber}" Text="{Binding VmmemText}" />
-                                <TextBlock Margin="6,0,0,6" VerticalAlignment="Bottom" Style="{StaticResource Secondary}" Text="reservados" />
-                            </StackPanel>
-                            <ProgressBar AutomationProperties.Name="Memória reservada pelo vmmemWSL" Style="{StaticResource Meter}" Value="{Binding VmmemPercent, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource Caption}" Text="Memória que o Windows entregou à VM do WSL" />
-                        </StackPanel>
-                    </Border>
-                </UniformGrid>
-
+            <!--  Ambiente  -->
+            <Border Margin="0,0,0,16" Padding="22,20" Style="{StaticResource CardBorder}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,24,0">
+                        <TextBlock Style="{StaticResource SectionLabel}">
+                            <Run Text="AMBIENTE · " /><Run Text="{Binding Env.DistroName, Mode=OneWay}" />
+                        </TextBlock>
+                        <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
+                            <Grid Width="18" Height="18" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <Ellipse Fill="{Binding Env.Tone, Converter={StaticResource ToneHalo}}" />
+                                <Ellipse Width="10" Height="10" Fill="{Binding Env.Tone, Converter={StaticResource ToneBrush}}" />
+                            </Grid>
+                            <TextBlock FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource Wv.Text}" Text="{Binding Env.Title}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,4,0,14" FontSize="13" Foreground="{StaticResource Wv.Text2}" Text="{Binding EnvSubtitle}" TextWrapping="Wrap" />
+                        <WrapPanel AutomationProperties.Name="Etapas do ambiente">
+                            <Border Style="{StaticResource StepChip}">
+                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                    <Ellipse Width="7" Height="7" Margin="0,0,8,0" Fill="{Binding Env.Distro.Tone, Converter={StaticResource ToneBrush}}" />
+                                    <TextBlock Margin="0,0,6,0" FontSize="13" Foreground="{StaticResource Wv.Text2}" Text="Distro" />
+                                    <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding Env.Distro.Value}" />
+                                </StackPanel>
+                            </Border>
+                            <ui:SymbolIcon Margin="6,0" VerticalAlignment="Center" FontSize="14" Foreground="{StaticResource Wv.TextFaint}" Symbol="ChevronRight24" />
+                            <Border Style="{StaticResource StepChip}">
+                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                    <Ellipse Width="7" Height="7" Margin="0,0,8,0" Fill="{Binding Env.Docker.Tone, Converter={StaticResource ToneBrush}}" />
+                                    <TextBlock Margin="0,0,6,0" FontSize="13" Foreground="{StaticResource Wv.Text2}" Text="Docker" />
+                                    <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding Env.Docker.Value}" />
+                                </StackPanel>
+                            </Border>
+                            <ui:SymbolIcon Margin="6,0" VerticalAlignment="Center" FontSize="14" Foreground="{StaticResource Wv.TextFaint}" Symbol="ChevronRight24" />
+                            <Border Style="{StaticResource StepChip}">
+                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                    <Ellipse Width="7" Height="7" Margin="0,0,8,0" Fill="{Binding Env.Projects.Tone, Converter={StaticResource ToneBrush}}" />
+                                    <TextBlock Margin="0,0,6,0" FontSize="13" Foreground="{StaticResource Wv.Text2}" Text="Projetos" />
+                                    <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding Env.Projects.Value}" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
 
-                    <!--  Docker  -->
-                    <Border Grid.Column="0" Margin="0,0,16,16" VerticalAlignment="Top" Style="{StaticResource CardBorder}">
-                        <StackPanel>
-                            <DockPanel Margin="18,16">
-                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                    <ui:Button Margin="0,0,8,0" Appearance="Secondary" Command="{Binding ToggleDockerCommand}">
-                                        <ui:Button.Style>
-                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                                <Setter Property="Content" Value="Ligar" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding State.IsDockerUp}" Value="True">
-                                                        <Setter Property="Content" Value="Parar" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ui:Button.Style>
-                                    </ui:Button>
-                                    <ui:Button Appearance="Secondary" Command="{Binding RestartDockerCommand}" Content="Reiniciar"
-                                               Visibility="{Binding State.IsDockerUp, Converter={StaticResource BoolToVis}}" />
+                    <!--  Uma ação principal, conforme o estado  -->
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <StackPanel HorizontalAlignment="Right" Visibility="{Binding Env.IsOff, Converter={StaticResource BoolToVis}}">
+                            <Button HorizontalAlignment="Right" Height="40" Padding="18,0" Command="{Binding Env.StartCommand}" Style="{StaticResource BtnPrimary}"
+                                    AutomationProperties.HelpText="{Binding Env.StartHint}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Margin="0,0,8,0" FontSize="16" Filled="True" Symbol="Play24" />
+                                    <TextBlock VerticalAlignment="Center" Text="Iniciar ambiente" />
                                 </StackPanel>
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource SectionTitle}" Text="Serviço Docker" />
-                                    <TextBlock Margin="0,2,0,0" Style="{StaticResource Secondary}" Text="{Binding DockerSummary}" />
-                                </StackPanel>
-                            </DockPanel>
-                            <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" />
-                            <StackPanel Margin="18,12,18,16" Visibility="{Binding State.IsDockerUp, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Margin="0,0,0,8" Style="{StaticResource ColumnHeader}" Text="Consumo por container" />
-                                <TextBlock Style="{StaticResource Caption}" Text="Nenhum container rodando."
-                                           Visibility="{Binding HasNoContainers, Converter={StaticResource BoolToVis}}" />
-                                <ItemsControl ItemsSource="{Binding TopContainers}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type vm:ContainerUsageRow}">
-                                            <Grid Margin="0,6">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="64" />
-                                                    <ColumnDefinition Width="2*" />
-                                                    <ColumnDefinition Width="72" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="1" Margin="0,0,12,0" HorizontalAlignment="Right" Text="{Binding Cpu}" />
-                                                <ProgressBar Grid.Column="2" Height="6" VerticalAlignment="Center" Maximum="100" Value="{Binding Percent, Mode=OneWay}" />
-                                                <TextBlock Grid.Column="3" HorizontalAlignment="Right" Text="{Binding Memory}" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                            </Button>
+                            <TextBlock Margin="0,8,0,0" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding Env.StartHint}" />
+                        </StackPanel>
+                        <Border Height="40" Padding="18,0" HorizontalAlignment="Right" Background="{StaticResource Wv.Inset}" BorderBrush="{StaticResource Wv.BorderStrong}" BorderThickness="1" CornerRadius="8"
+                                Visibility="{Binding Env.IsStarting, Converter={StaticResource BoolToVis}}">
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <ui:ProgressRing Width="16" Height="16" Margin="0,0,10,0" IsIndeterminate="{Binding Env.IsStarting}" />
+                                <TextBlock VerticalAlignment="Center" Foreground="{StaticResource Wv.Text2}" Text="{Binding State.EnvironmentStep}" />
                             </StackPanel>
-                            <TextBlock Margin="18,12,18,16" Style="{StaticResource Secondary}" Text="Com o Docker parado, nenhum container consome recursos."
-                                       Visibility="{Binding State.IsDockerUp, Converter={StaticResource InverseBoolToVis}}" />
+                        </Border>
+                        <StackPanel HorizontalAlignment="Right" Visibility="{Binding Env.IsOn, Converter={StaticResource BoolToVis}}">
+                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                <Button Height="40" Margin="0,0,8,0" Command="{Binding Env.StopCommand}" Style="{StaticResource BtnSecondary}"
+                                        ToolTip="Para o Docker (e os containers). A distro continua ligada.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Margin="0,0,8,0" FontSize="14" Filled="True" Symbol="Stop24" />
+                                        <TextBlock VerticalAlignment="Center" Text="Parar ambiente" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Height="40" Command="{Binding Env.ShutdownWslCommand}" Style="{StaticResource BtnGhost}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Margin="0,0,8,0" FontSize="15" Symbol="Power24" />
+                                        <TextBlock VerticalAlignment="Center" Text="Desligar WSL" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <TextBlock Margin="0,8,0,0" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}">
+                                <Run Text="Desligar o WSL devolve " /><Run Text="{Binding VmmemText, Mode=OneWay}" /><Run Text=" ao Windows" />
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!--  Consumo: quatro números, uma leitura  -->
+            <Grid Margin="0,0,-12,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource Tile}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="da distro" />
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Wv.Text2}" Text="Memória" />
+                        </DockPanel>
+                        <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Metric}" Text="{Binding MemUsedText}" />
+                            <TextBlock Margin="6,0,0,4" VerticalAlignment="Bottom" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding MemTotalText}" />
+                        </StackPanel>
+                        <ProgressBar AutomationProperties.Name="Memória da distro em uso" Style="{StaticResource Meter}" Value="{Binding MemPercent, Mode=OneWay}" />
+                        <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="Em uso dentro da distro" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource Tile}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}">
+                                <Run Text="{Binding Processors, Mode=OneWay, StringFormat=0}" /><Run Text=" núcleos" />
+                            </TextBlock>
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Wv.Text2}" Text="CPU" />
+                        </DockPanel>
+                        <TextBlock Margin="0,6,0,0" Style="{StaticResource Metric}" Text="{Binding CpuText}" />
+                        <Viewbox Height="28" Stretch="Fill">
+                            <Canvas Width="120" Height="40" ToolTip="CPU no último minuto">
+                                <Polyline Points="{Binding CpuPoints}" Stroke="{StaticResource Wv.Accent}" StrokeLineJoin="Round" StrokeThickness="2.4" />
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="Último minuto" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource Tile}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="ext4.vhdx" />
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Wv.Text2}" Text="Disco" />
+                        </DockPanel>
+                        <TextBlock Margin="0,6,0,0" Style="{StaticResource Metric}" Text="{Binding DiskUsedText}" />
+                        <ProgressBar AutomationProperties.Name="Disco da distro em uso" Style="{StaticResource Meter}" Value="{Binding DiskPercent, Mode=OneWay}" />
+                        <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding DiskSizeText}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="3" Style="{StaticResource Tile}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="vmmemWSL" />
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Wv.Text2}" Text="No Windows" />
+                        </DockPanel>
+                        <TextBlock Margin="0,6,0,0" Style="{StaticResource Metric}" Text="{Binding VmmemText}" />
+                        <ProgressBar AutomationProperties.Name="Memória reservada pelo vmmemWSL" Style="{StaticResource Meter}" Value="{Binding VmmemPercent, Mode=OneWay}" />
+                        <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="Memória reservada para a VM" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="2*" />
+                </Grid.ColumnDefinitions>
+
+                <!--  Projetos  -->
+                <Border Grid.Column="0" VerticalAlignment="Top" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <DockPanel Margin="16,14,10,8">
+                            <Button DockPanel.Dock="Right" Height="28" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding DataContext.Containers, RelativeSource={RelativeSource AncestorType=Window}}" Content="Ver containers" Foreground="{StaticResource Wv.AccentText}" Style="{StaticResource BtnGhost}" />
+                            <TextBlock VerticalAlignment="Center" Style="{StaticResource SectionTitle}" Text="Projetos" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding Inventory.Groups}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ContainerGroupViewModel}">
+                                    <Border Padding="16,12" BorderBrush="{StaticResource Wv.Border}" BorderThickness="0,1,0,0">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <!--  Nome na primeira linha; status e pasta na segunda, para o nome não disputar espaço  -->
+                                            <StackPanel Grid.Column="0" Margin="0,0,12,0" ToolTip="{Binding WorkingDirLabel}">
+                                                <DockPanel>
+                                                    <Ellipse Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center" DockPanel.Dock="Left" Fill="{Binding Status, Converter={StaticResource ToneBrush}}" />
+                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                                <DockPanel Margin="15,2,0,0">
+                                                    <TextBlock DockPanel.Dock="Left" FontSize="12" Foreground="{Binding Status, Converter={StaticResource ToneBrush}}" Text="{Binding StatusLabel}" />
+                                                    <TextBlock Margin="8,0,0,0" FontFamily="{StaticResource Wv.Mono}" FontSize="12" Foreground="{StaticResource Wv.Text3}"
+                                                               Text="{Binding WorkingDirLabel}" TextTrimming="CharacterEllipsis" Visibility="{Binding HasWorkingDir, Converter={StaticResource BoolToVis}}" />
+                                                </DockPanel>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Margin="0,0,16,0" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Wv.Text2}">
+                                                <Run FontWeight="SemiBold" Foreground="{StaticResource Wv.Text}" Text="{Binding CpuText, Mode=OneWay}" /><Run Text=" CPU   " /><Run FontWeight="SemiBold" Foreground="{StaticResource Wv.Text}" Text="{Binding MemText, Mode=OneWay}" /><Run Text=" RAM" />
+                                            </TextBlock>
+                                            <StackPanel Grid.Column="2" Margin="0,0,12,0" VerticalAlignment="Center" Orientation="Horizontal" Visibility="{Binding IsCompose, Converter={StaticResource BoolToVis}}">
+                                                <ui:ToggleSwitch AutomationProperties.Name="{Binding Title, StringFormat=Iniciar {0} com o ambiente}"
+                                                                 Command="{Binding DataContext.Inventory.ToggleStartupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                                 IsChecked="{Binding IsStartup, Mode=OneWay}" ToolTip="O botão Iniciar ambiente também sobe este projeto" />
+                                                <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Wv.Text2}" Text="Com o ambiente" />
+                                            </StackPanel>
+                                            <Grid Grid.Column="3" VerticalAlignment="Center">
+                                                <Button Height="32" Command="{Binding DataContext.Inventory.OpenGroupInVsCodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                        Content="Abrir no VS Code" Style="{StaticResource BtnSecondary}" Visibility="{Binding AnyRunning, Converter={StaticResource BoolToVis}}" />
+                                                <Button Height="32" Command="{Binding DataContext.Inventory.StartGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                        Content="Iniciar" Style="{StaticResource BtnSecondary}" Visibility="{Binding AnyRunning, Converter={StaticResource InverseBoolToVis}}" />
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Margin="16,4,16,16" FontSize="13" Foreground="{StaticResource Wv.Text3}" TextWrapping="Wrap"
+                                   Text="Nenhum projeto à vista. Ligue o ambiente ou suba um projeto com docker compose."
+                                   Visibility="{Binding Inventory.Groups.Count, Converter={StaticResource ZeroToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="2">
+                    <!--  Quem mais usa memória  -->
+                    <Border Margin="0,0,0,12" Padding="16,14" Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock Margin="0,0,0,10" Style="{StaticResource SectionTitle}" Text="Quem mais usa memória" />
+                            <ItemsControl ItemsSource="{Binding TopContainers}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ContainerItemViewModel}">
+                                        <Grid Margin="0,0,0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="3*" />
+                                                <ColumnDefinition Width="2*" />
+                                                <ColumnDefinition Width="64" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="13" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}">
+                                                <Run Text="{Binding DisplayName, Mode=OneWay}" /><Run FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding ComposeProject, Mode=OneWay, StringFormat='  {0}'}" />
+                                            </TextBlock>
+                                            <ProgressBar Grid.Column="1" Margin="10,7" Style="{StaticResource Meter}" Value="{Binding MemShare, Mode=OneWay}" />
+                                            <TextBlock Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Wv.Text2}" Text="{Binding MemText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock FontSize="13" Foreground="{StaticResource Wv.Text3}" Text="Nada rodando agora." Visibility="{Binding HasNoContainers, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
                     </Border>
 
-                    <!--  Limites do .wslconfig  -->
-                    <Border Grid.Column="1" Margin="0,0,16,16" Padding="18,16" VerticalAlignment="Top" Style="{StaticResource CardBorder}">
+                    <!--  Atividade: eventos do Docker, sem consulta extra  -->
+                    <Border Margin="0,0,0,12" Padding="16,14" Style="{StaticResource CardBorder}">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource SectionTitle}" Text="Limites do WSL" />
-                            <TextBlock Margin="0,2,0,12" Style="{StaticResource Secondary}" Text="Gravados no .wslconfig da sua pasta do Windows. Um backup é feito antes da primeira alteração." />
+                            <TextBlock Margin="0,0,0,8" Style="{StaticResource SectionTitle}" Text="Atividade" />
+                            <ItemsControl MaxHeight="190" ItemsSource="{Binding Activity.Entries}">
+                                <ItemsControl.Template>
+                                    <ControlTemplate TargetType="ItemsControl">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ItemsPresenter />
+                                        </ScrollViewer>
+                                    </ControlTemplate>
+                                </ItemsControl.Template>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type svc:ActivityEntry}">
+                                        <DockPanel Margin="0,0,0,7">
+                                            <Ellipse Width="6" Height="6" Margin="0,0,10,0" VerticalAlignment="Center" DockPanel.Dock="Left" Fill="{Binding Tone, Converter={StaticResource ToneBrush}}" />
+                                            <TextBlock Margin="10,0,0,0" DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding TimeText}" />
+                                            <TextBlock FontSize="13" Text="{Binding Text}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text}" />
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock FontSize="13" Foreground="{StaticResource Wv.Text3}" TextWrapping="Wrap" Text="O que acontecer com os containers aparece aqui."
+                                       Visibility="{Binding Activity.Entries.Count, Converter={StaticResource ZeroToVis}}" />
+                        </StackPanel>
+                    </Border>
 
-                            <!--  Sugestão de acordo com o hardware deste PC  -->
-                            <Border Margin="0,0,0,16" Padding="12,10" Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="6">
-                                <DockPanel>
-                                    <Button Margin="12,0,0,0" VerticalAlignment="Center" Command="{Binding ApplyRecommendedCommand}" DockPanel.Dock="Right"
-                                            IsEnabled="{Binding IsRecommended, Converter={StaticResource InverseBool}}" Style="{StaticResource TintAccent}"
-                                            ToolTip="Coloca os controles nos valores recomendados. Nada é gravado até você salvar.">
-                                        <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Margin="0,0,6,0" FontSize="16" Symbol="Sparkle24" />
-                                            <TextBlock VerticalAlignment="Center" Text="Usar recomendado" />
-                                        </StackPanel>
-                                    </Button>
+                    <!--  Limites do WSL: resumo; Ajustar abre o editor  -->
+                    <Border Padding="16,12" Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Height="32" Command="{Binding ToggleLimitsCommand}">
+                                    <Button.Style>
+                                        <Style BasedOn="{StaticResource BtnSecondary}" TargetType="Button">
+                                            <Setter Property="Content" Value="Ajustar" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLimitsOpen}" Value="True">
+                                                    <Setter Property="Content" Value="Fechar" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="Limites do WSL" />
+                                    <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding LimitsSummary}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <StackPanel Margin="0,14,0,2" Visibility="{Binding IsLimitsOpen, Converter={StaticResource BoolToVis}}">
+                                <Border Margin="0,0,0,14" Padding="12,10" Style="{StaticResource InsetBorder}">
                                     <StackPanel>
                                         <TextBlock FontWeight="SemiBold" Text="{Binding RecommendationTitle}" TextWrapping="Wrap" />
-                                        <TextBlock Margin="0,2,0,0" Style="{StaticResource Caption}" Text="{Binding RecommendationReason}" />
+                                        <TextBlock Margin="0,2,0,8" Style="{StaticResource Caption}" Text="{Binding RecommendationReason}" />
+                                        <Button HorizontalAlignment="Left" Height="30" Command="{Binding ApplyRecommendedCommand}" Content="Usar recomendado"
+                                                IsEnabled="{Binding IsRecommended, Converter={StaticResource InverseBool}}" Style="{StaticResource BtnSecondary}"
+                                                ToolTip="Coloca os controles nos valores recomendados. Nada é gravado até você salvar." />
+                                    </StackPanel>
+                                </Border>
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding MemoryLimitText}" />
+                                    <TextBlock FontWeight="SemiBold" Text="Memória máxima" />
+                                </DockPanel>
+                                <Slider Margin="0,6,0,2" AutomationProperties.Name="Memória máxima do WSL em GB" IsSnapToTickEnabled="True" Maximum="{Binding TotalRamGb}" Minimum="1" TickFrequency="1" Value="{Binding MemoryLimitGb}" />
+                                <TextBlock Margin="0,0,0,12" Style="{StaticResource Caption}" Text="{Binding RamHint}" />
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ProcessorsText}" />
+                                    <TextBlock FontWeight="SemiBold" Text="Processadores" />
+                                </DockPanel>
+                                <Slider Margin="0,6,0,12" AutomationProperties.Name="Processadores do WSL" IsSnapToTickEnabled="True" Maximum="{Binding CpuCount}" Minimum="1" TickFrequency="1" Value="{Binding Processors}" />
+                                <DockPanel Margin="0,0,0,14">
+                                    <ui:ToggleSwitch AutomationProperties.Name="Devolver memória ociosa ao Windows" DockPanel.Dock="Right" IsChecked="{Binding AutoMemoryReclaim}" />
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Text="Devolver memória ociosa" />
+                                        <TextBlock Style="{StaticResource Caption}" Text="Reduz o vmmemWSL aos poucos quando a distro está ociosa" />
                                     </StackPanel>
                                 </DockPanel>
-                            </Border>
-
-                            <DockPanel>
-                                <TextBlock DockPanel.Dock="Right" Text="{Binding MemoryLimitText}" />
-                                <TextBlock FontWeight="SemiBold" Text="Memória máxima" />
-                            </DockPanel>
-                            <Slider
-                                Margin="0,6,0,2"
-                                AutomationProperties.Name="Memória máxima do WSL em GB"
-                                IsSnapToTickEnabled="True"
-                                Maximum="{Binding TotalRamGb}"
-                                Minimum="1"
-                                TickFrequency="1"
-                                Value="{Binding MemoryLimitGb}" />
-                            <TextBlock Margin="0,0,0,14" Style="{StaticResource Caption}" Text="{Binding RamHint}" />
-
-                            <DockPanel>
-                                <TextBlock DockPanel.Dock="Right" Text="{Binding ProcessorsText}" />
-                                <TextBlock FontWeight="SemiBold" Text="Processadores" />
-                            </DockPanel>
-                            <Slider
-                                Margin="0,6,0,14"
-                                AutomationProperties.Name="Processadores do WSL"
-                                IsSnapToTickEnabled="True"
-                                Maximum="{Binding CpuCount}"
-                                Minimum="1"
-                                TickFrequency="1"
-                                Value="{Binding Processors}" />
-
-                            <DockPanel Margin="0,0,0,16">
-                                <ui:ToggleSwitch AutomationProperties.Name="Devolver memória ociosa ao Windows" DockPanel.Dock="Right" IsChecked="{Binding AutoMemoryReclaim}" />
-                                <StackPanel>
-                                    <TextBlock FontWeight="SemiBold" Text="Devolver memória ociosa ao Windows" />
-                                    <TextBlock Style="{StaticResource Caption}" Text="Reduz o vmmemWSL aos poucos quando a distro está ociosa" />
-                                </StackPanel>
-                            </DockPanel>
-
-                            <ui:InfoBar Margin="0,0,0,12" IsClosable="False" IsOpen="{Binding SavedMessageVisible}" Message="O WSL foi reiniciado com os novos limites." Severity="Success" Title="Salvo." />
-
-                            <WrapPanel>
-                                <ui:Button Margin="0,0,8,8" Appearance="Primary" Command="{Binding SaveLimitsCommand}" Content="Salvar e reiniciar o WSL" IsEnabled="{Binding IsDirty}" />
-                                <ui:Button Margin="0,0,8,8" Appearance="Secondary" Command="{Binding UndoLimitsCommand}" Content="Desfazer alterações" IsEnabled="{Binding CanUndoConfig}" />
-                            </WrapPanel>
-                            <TextBlock Style="{StaticResource Caption}" Text="Para aplicar, o WSL é desligado e ligado de novo. Os containers ficam parados por alguns segundos." />
+                                <ui:InfoBar Margin="0,0,0,12" IsClosable="False" IsOpen="{Binding SavedMessageVisible}" Message="O WSL foi reiniciado com os novos limites." Severity="Success" Title="Salvo." />
+                                <WrapPanel>
+                                    <Button Margin="0,0,8,8" Command="{Binding SaveLimitsCommand}" Content="Salvar e reiniciar o WSL" IsEnabled="{Binding IsDirty}" Style="{StaticResource BtnPrimary}" />
+                                    <Button Margin="0,0,8,8" Command="{Binding UndoLimitsCommand}" Content="Desfazer alterações" IsEnabled="{Binding CanUndoConfig}" Style="{StaticResource BtnSecondary}" />
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource Caption}" Text="Para aplicar, o WSL é desligado e ligado de novo. Os containers ficam parados por alguns segundos." />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
-                </Grid>
-            </StackPanel>
+                </StackPanel>
+            </Grid>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

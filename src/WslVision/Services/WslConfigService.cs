@@ -171,15 +171,16 @@ public sealed partial class WslConfigService
         if (!m.Success || !double.TryParse(m.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var n))
             return null;
         var unit = m.Groups[2].Value.ToUpperInvariant();
+        // Sem unidade, o WSL lê bytes: é assim que as Configurações do WSL gravam (memory=4294967296 = 4 GB).
         var gb = unit switch
         {
-            "" or "G" or "GB" => n,
-            "B" => n / 1024 / 1024 / 1024,
+            "G" or "GB" => n,
+            "" or "B" => n / 1024 / 1024 / 1024,
             _ when unit.StartsWith('K') => n / 1024 / 1024,
             _ when unit.StartsWith('M') => n / 1024,
             _ => n * 1024, // T, TB
         };
-        return Math.Max(1, (int)Math.Round(gb, MidpointRounding.AwayFromZero));
+        return (int)Math.Clamp(Math.Round(gb, MidpointRounding.AwayFromZero), 1, int.MaxValue);
     }
 
     [GeneratedRegex(@"^\[(.+)\]$")]

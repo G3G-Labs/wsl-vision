@@ -8,13 +8,16 @@
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:vm="clr-namespace:WslVision.ViewModels"
     Title="WSL Vision"
-    Width="1240"
-    Height="800"
+    Icon="pack://application:,,,/Assets/app.ico"
+    Width="1280"
+    Height="820"
     MinWidth="900"
     MinHeight="600"
     d:DataContext="{d:DesignInstance Type=vm:MainWindowViewModel}"
+    Background="{StaticResource Wv.Bg}"
     ExtendsContentIntoTitleBar="True"
-    WindowBackdropType="Mica"
+    Foreground="{StaticResource Wv.Text}"
+    WindowBackdropType="None"
     WindowCornerPreference="Round"
     WindowStartupLocation="CenterScreen"
     mc:Ignorable="d">
@@ -39,13 +42,25 @@
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <pages:SettingsView />
         </DataTemplate>
+
+        <!--  Ícone do menu lateral: azul na aba atual  -->
+        <Style x:Key="NavIcon" TargetType="ui:SymbolIcon">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Wv.Accent}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
-    <!--  Atalhos: Ctrl+1..5 trocam de aba, Ctrl+vírgula abre Ajustes  -->
+    <!--  Atalhos: Ctrl+K paleta; Ctrl+1..5 abas; Ctrl+vírgula Ajustes  -->
     <Window.InputBindings>
-        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Containers}" Gesture="Ctrl+D1" />
-        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Files}" Gesture="Ctrl+D2" />
-        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Monitor}" Gesture="Ctrl+D3" />
+        <KeyBinding Command="{Binding Palette.ToggleCommand}" Gesture="Ctrl+K" />
+        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Monitor}" Gesture="Ctrl+D1" />
+        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Containers}" Gesture="Ctrl+D2" />
+        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Files}" Gesture="Ctrl+D3" />
         <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Terminal}" Gesture="Ctrl+D4" />
         <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Maintenance}" Gesture="Ctrl+D5" />
         <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Settings}" Gesture="Ctrl+OemComma" />
@@ -57,40 +72,55 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar
-            Grid.Row="0"
-            Title="WSL Vision">
-            <ui:TitleBar.Icon>
-                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" />
-            </ui:TitleBar.Icon>
-            <ui:TitleBar.TrailingContent>
-                <Border
-                    Margin="0,0,12,0"
-                    Padding="10,2"
-                    VerticalAlignment="Center"
-                    Background="{DynamicResource ControlFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="10">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse x:Name="StatusDot" Style="{StaticResource Dot}" />
-                        <TextBlock
-                            FontSize="12"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                            Text="{Binding State.StatusText}" />
-                    </StackPanel>
-                </Border>
-            </ui:TitleBar.TrailingContent>
+        <!--  Barra de título: o TitleBar cuida de arrastar e dos botões; a marca e o status ficam por cima, sem capturar o mouse.
+             A busca fica no CenterContent (para o TitleBar deixá-la clicável) e o código a centraliza na janela.  -->
+        <ui:TitleBar Grid.Row="0" Title="" Height="44">
+            <ui:TitleBar.CenterContent>
+                <Button
+                    x:Name="SearchButton"
+                    Width="340"
+                    HorizontalAlignment="Left"
+                    Height="30"
+                    Padding="10,0,8,0"
+                    HorizontalContentAlignment="Stretch"
+                    AutomationProperties.Name="Buscar ou executar (Ctrl+K)"
+                    Background="{StaticResource Wv.Surface}"
+                    BorderBrush="#25272B"
+                    Command="{Binding Palette.OpenCommand}"
+                    Foreground="{StaticResource Wv.Text3}"
+                    Style="{StaticResource WvButtonBase}"
+                    Tag="{StaticResource Wv.Hover}">
+                    <DockPanel>
+                        <Border Padding="6,1" VerticalAlignment="Center" BorderBrush="{StaticResource Wv.BorderStrong}" BorderThickness="1" CornerRadius="4" DockPanel.Dock="Right">
+                            <TextBlock FontSize="11" Foreground="{StaticResource Wv.Text2}" Text="Ctrl K" />
+                        </Border>
+                        <ui:SymbolIcon Margin="0,0,8,0" VerticalAlignment="Center" DockPanel.Dock="Left" FontSize="14" Symbol="Search24" />
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Text="Buscar ou executar…" />
+                    </DockPanel>
+                </Button>
+            </ui:TitleBar.CenterContent>
         </ui:TitleBar>
+        <StackPanel x:Name="Brand" Grid.Row="0" Margin="14,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False" Orientation="Horizontal">
+            <Image Width="22" Height="22" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" Source="pack://application:,,,/Assets/logo.png" />
+            <TextBlock VerticalAlignment="Center" FontSize="13">
+                <Run FontWeight="Bold" Text="WSL" /><Run FontWeight="Medium" Text=" Vision" />
+            </TextBlock>
+            <Border Height="24" Margin="14,0,0,0" Padding="10,0" Background="{StaticResource Wv.Surface}" BorderBrush="#25272B" BorderThickness="1" CornerRadius="12">
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <Ellipse x:Name="StatusDot" Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text2}" Text="{Binding State.StatusText}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
 
         <Grid x:Name="ContentRoot" Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="80" />
+                <ColumnDefinition Width="72" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!--  Menu lateral: quatro abas + Ajustes no rodapé  -->
-            <DockPanel Grid.Column="0" Margin="0,4,0,12">
+            <!--  Menu lateral: as abas + Ajustes no rodapé  -->
+            <DockPanel Grid.Column="0" Margin="0,6,0,12">
                 <RadioButton
                     AutomationProperties.Name="Ajustes"
                     Command="{Binding NavigateCommand}"
@@ -98,9 +128,10 @@
                     DockPanel.Dock="Bottom"
                     GroupName="Nav"
                     IsChecked="{Binding Settings.IsCurrent, Mode=OneWay}"
-                    Style="{StaticResource NavRailItem}">
+                    Style="{StaticResource NavRailItem}"
+                    ToolTip="Ajustes (Ctrl+,)">
                     <StackPanel>
-                        <ui:SymbolIcon HorizontalAlignment="Center" FontSize="20" Symbol="Settings24" />
+                        <ui:SymbolIcon Style="{StaticResource NavIcon}" Symbol="Settings24" />
                         <TextBlock Margin="0,3,0,0" HorizontalAlignment="Center" FontSize="11" Text="Ajustes" />
                     </StackPanel>
                 </RadioButton>
@@ -115,8 +146,8 @@
                                 IsChecked="{Binding IsCurrent, Mode=OneWay}"
                                 Style="{StaticResource NavRailItem}">
                                 <StackPanel>
-                                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="20" Symbol="{Binding Icon}" />
-                                    <TextBlock Margin="0,3,0,0" HorizontalAlignment="Center" FontSize="11" Text="{Binding Title}" />
+                                    <ui:SymbolIcon Style="{StaticResource NavIcon}" Symbol="{Binding Icon}" />
+                                    <TextBlock Margin="0,3,0,0" HorizontalAlignment="Center" FontSize="11" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </RadioButton>
                         </DataTemplate>
@@ -127,10 +158,10 @@
             <!--  Área da aba atual  -->
             <Border
                 Grid.Column="1"
-                Background="{DynamicResource LayerFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                Background="{StaticResource Wv.Layer}"
+                BorderBrush="{StaticResource Wv.Border}"
                 BorderThickness="1,1,0,0"
-                CornerRadius="8,0,0,0">
+                CornerRadius="12,0,0,0">
                 <Grid>
                     <ContentControl Content="{Binding Current}" Focusable="False" />
                     <pages:TerminalView DataContext="{Binding Terminal}" Visibility="{Binding IsCurrent, Converter={StaticResource BoolToVis}}" />
@@ -144,27 +175,28 @@
                     <Border
                         MaxWidth="640"
                         Margin="16,0,16,20"
-                        Padding="14,10,6,10"
+                        Padding="14,8,6,8"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Bottom"
-                        Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        Background="{StaticResource Wv.Flyout}"
+                        BorderBrush="{StaticResource Wv.BorderStrong}"
                         BorderThickness="1"
-                        CornerRadius="8"
+                        CornerRadius="10"
                         Visibility="{Binding Notifier.Message, Converter={StaticResource NullToVis}}">
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="24" Opacity="0.18" ShadowDepth="4" />
+                            <DropShadowEffect BlurRadius="28" Opacity="0.45" ShadowDepth="6" />
                         </Border.Effect>
                         <DockPanel>
-                            <ui:Button
+                            <Button
                                 Width="32"
                                 Height="32"
                                 Margin="8,0,0,0"
-                                Style="{StaticResource SubtleButton}"
                                 AutomationProperties.Name="Fechar aviso"
                                 Click="OnDismissToast"
                                 DockPanel.Dock="Right"
-                                Icon="{ui:SymbolIcon Dismiss24}" />
+                                Style="{StaticResource BtnIcon}">
+                                <ui:SymbolIcon FontSize="14" Symbol="Dismiss24" />
+                            </Button>
                             <ui:SymbolIcon
                                 x:Name="ToastIcon"
                                 Margin="0,0,10,0"
@@ -173,11 +205,139 @@
                                 Symbol="CheckmarkCircle24" />
                             <TextBlock
                                 VerticalAlignment="Center"
+                                FontSize="13"
                                 Text="{Binding Notifier.Message}"
                                 TextWrapping="Wrap" />
                         </DockPanel>
                     </Border>
                 </Grid>
+            </Border>
+        </Grid>
+
+        <!--  Paleta de comandos (Ctrl+K): abre por cima de qualquer tela  -->
+        <Grid Grid.Row="0" Grid.RowSpan="2" Visibility="{Binding Palette.IsOpen, Converter={StaticResource BoolToVis}}">
+            <Border Background="#8C050607" MouseLeftButtonDown="OnPaletteBackdrop" />
+            <Border
+                Width="640"
+                MaxHeight="560"
+                Margin="16,96,16,40"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                AutomationProperties.Name="Paleta de comandos"
+                Background="{StaticResource Wv.Flyout}"
+                BorderBrush="{StaticResource Wv.BorderStrong}"
+                BorderThickness="1"
+                CornerRadius="14">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="48" Opacity="0.55" ShadowDepth="16" />
+                </Border.Effect>
+                <DockPanel>
+                    <DockPanel Height="56" Margin="16,0" DockPanel.Dock="Top">
+                        <Border Padding="6,2" VerticalAlignment="Center" BorderBrush="#34373D" BorderThickness="1" CornerRadius="4" DockPanel.Dock="Right">
+                            <TextBlock FontSize="11" Foreground="{StaticResource Wv.Text2}" Text="Esc" />
+                        </Border>
+                        <ui:SymbolIcon Margin="0,0,12,0" VerticalAlignment="Center" DockPanel.Dock="Left" FontSize="18" Foreground="{StaticResource Wv.Text2}" Symbol="Search24" />
+                        <Grid VerticalAlignment="Center">
+                            <TextBlock FontSize="16" Foreground="{StaticResource Wv.TextFaint}" IsHitTestVisible="False" Text="Buscar ação, projeto, container ou pasta"
+                                       Visibility="{Binding Palette.Query, Converter={StaticResource InverseNullToVis}}" />
+                            <TextBox
+                                x:Name="PaletteInput"
+                                AutomationProperties.Name="Buscar ação, projeto, container ou pasta"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CaretBrush="{StaticResource Wv.Accent}"
+                                FontSize="16"
+                                Foreground="{StaticResource Wv.Text}"
+                                PreviewKeyDown="OnPaletteKeyDown"
+                                Text="{Binding Palette.Query, UpdateSourceTrigger=PropertyChanged}">
+                                <TextBox.Template>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                                    </ControlTemplate>
+                                </TextBox.Template>
+                            </TextBox>
+                        </Grid>
+                    </DockPanel>
+                    <Border BorderBrush="#26282D" BorderThickness="0,1,0,0" DockPanel.Dock="Top" />
+
+                    <DockPanel Margin="16,10" DockPanel.Dock="Bottom" LastChildFill="False">
+                        <TextBlock DockPanel.Dock="Left" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="↑ ↓ navegar   ·   Enter executar   ·   Esc fechar" />
+                    </DockPanel>
+                    <Border BorderBrush="#26282D" BorderThickness="0,1,0,0" DockPanel.Dock="Bottom" />
+
+                    <Grid>
+                        <TextBlock Margin="16,32" HorizontalAlignment="Center" Foreground="{StaticResource Wv.Text2}" Visibility="{Binding Palette.IsEmpty, Converter={StaticResource BoolToVis}}">
+                            <Run Text="Nada encontrado para “" /><Run Text="{Binding Palette.Query, Mode=OneWay}" /><Run Text="”." />
+                        </TextBlock>
+                        <ListBox
+                            x:Name="PaletteList"
+                            Padding="6"
+                            AutomationProperties.Name="Resultados"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            ItemsSource="{Binding Palette.ResultsView}"
+                            MouseLeftButtonUp="OnPaletteClick"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            SelectedItem="{Binding Palette.Selected}">
+                            <ListBox.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Margin="10,10,0,4" Style="{StaticResource SectionLabel}" Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ListBox.GroupStyle>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Foreground" Value="{StaticResource Wv.Text}" />
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="Bg" MinHeight="44" Padding="10,0" Background="Transparent" CornerRadius="8">
+                                                    <ContentPresenter VerticalAlignment="Center" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bg" Property="Background" Value="#1F2227" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="Bg" Property="Background" Value="#23272D" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:PaletteItem}">
+                                    <DockPanel>
+                                        <Border x:Name="IconTile" Width="28" Height="28" Margin="0,0,12,0" Background="{StaticResource Wv.Track}" CornerRadius="7" DockPanel.Dock="Left">
+                                            <ui:SymbolIcon x:Name="Ico" FontSize="14" Foreground="{StaticResource Wv.TextSoft}" Symbol="{Binding Icon}" />
+                                        </Border>
+                                        <Border Padding="6,1" VerticalAlignment="Center" BorderBrush="#34373D" BorderThickness="1" CornerRadius="4" DockPanel.Dock="Right"
+                                                Visibility="{Binding HasKeys, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock FontSize="11" Foreground="{StaticResource Wv.Text2}" Text="{Binding Keys}" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock FontSize="14" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding Detail}" TextTrimming="CharacterEllipsis"
+                                                       Visibility="{Binding HasDetail, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Accent}" Value="True">
+                                            <Setter TargetName="IconTile" Property="Background" Value="{StaticResource Wv.Accent}" />
+                                            <Setter TargetName="Ico" Property="Foreground" Value="{StaticResource Wv.OnAccent}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </DockPanel>
             </Border>
         </Grid>
     </Grid>

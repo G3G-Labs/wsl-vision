@@ -39,11 +39,19 @@ public partial class App : Application
 
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandled;
-        ApplicationThemeManager.ApplySystemTheme();
+        // Visual do redesign: tema escuro e o azul do produto como cor de destaque, independentes do Windows.
+        ApplicationThemeManager.Apply(ApplicationTheme.Dark, Wpf.Ui.Controls.WindowBackdropType.None, updateAccent: false);
+        ApplicationAccentColorManager.Apply(
+            System.Windows.Media.Color.FromRgb(0x4C, 0xC2, 0xFF),
+            System.Windows.Media.Color.FromRgb(0x6C, 0xC7, 0xFF),
+            System.Windows.Media.Color.FromRgb(0x4C, 0xC2, 0xFF),
+            System.Windows.Media.Color.FromRgb(0x2F, 0xA8, 0xEC));
         Settings.Load();
 
         // Composição: tudo é criado uma vez e vive enquanto o app estiver aberto.
         Notifier = new Notifier();
+        if (Settings.LoadProblem is { } problem)
+            Notifier.Show(problem, isError: true);
         _wsl = new WslService();
         _docker = new DockerManager(_wsl, Settings);
         _launcher = new LauncherService(_wsl);
@@ -57,12 +65,17 @@ public partial class App : Application
         var settingsVm = new SettingsViewModel(Settings, _wsl, _setup, wslConfig, _docker, state, _dialogs, Notifier);
         settingsVm.RunSetupRequested += (_, _) => RunSetup(fromSettings: true);
         var terminal = new TerminalViewModel(Settings, _launcher, _dialogs, Notifier);
+        var activity = new ActivityLog();
+        // Uma lista de containers e um modelo do ambiente, compartilhados por todas as telas.
+        var inventory = new ContainerInventory(state, _docker, _metrics, Settings, Notifier, _launcher, activity);
+        var env = new EnvironmentViewModel(state, inventory, _docker, _metrics, Settings, _dialogs, Notifier, activity);
+        var containers = new ContainersViewModel(state, inventory, env, _docker, _dialogs, Notifier, terminal, activity);
         var mainVm = new MainWindowViewModel(
             state,
             Notifier,
-            new ContainersViewModel(state, _docker, _dialogs, Notifier, _launcher, Settings, _metrics, terminal),
+            containers,
             new FilesViewModel(state, Settings, files, _launcher, _dialogs, Notifier, terminal),
-            new MonitorViewModel(state, _metrics, wslConfig, _docker, Settings, _dialogs, Notifier),
+            new MonitorViewModel(state, _metrics, wslConfig, Settings, _dialogs, Notifier, inventory, env, activity),
             terminal,
             new MaintenanceViewModel(state, new MaintenanceService(_wsl), _docker, Settings, _metrics, _dialogs, Notifier),
             settingsVm);
@@ -70,7 +83,8 @@ public partial class App : Application
         _main = new MainWindow(mainVm, Settings);
         MainWindow = _main;
 
-        _tray = new TrayService(state, Settings, _launcher, _dialogs, Notifier);
+        var flyout = new TrayFlyoutViewModel(state, env, inventory, _metrics, _launcher, Settings, Notifier);
+        _tray = new TrayService(state, Settings, _launcher, Notifier, env, flyout);
         _tray.ShowWindowRequested += (_, _) => ShowMain();
         _tray.ExitRequested += (_, _) => ExitApp();
         var minimized = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase);

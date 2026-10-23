@@ -21,6 +21,12 @@ public sealed class WslService
 
     public const int NotFoundExitCode = 2;
 
+    // O estado e cada conexão nova com o Docker perguntam quais distros estão ligadas, muitas vezes no mesmo instante:
+    // a resposta vale por 2 s, e cada wsl.exe a menos é um canal a menos aberto na VM.
+    private readonly CachedQuery<IReadOnlySet<string>> _running;
+
+    public WslService() => _running = new(QueryRunningAsync, TimeSpan.FromSeconds(2));
+
     /// <summary>Lista as distros pelo registro (não liga o WSL e não depende do idioma do Windows).</summary>
     public async Task<IReadOnlyList<DistroInfo>> ListDistrosAsync()
     {
@@ -76,8 +82,10 @@ public sealed class WslService
         return null;
     }
 
-    /// <summary>Distros ligadas agora. Não liga nenhuma distro.</summary>
-    public async Task<HashSet<string>> ListRunningAsync()
+    /// <summary>Distros ligadas agora (resposta de até 2 s atrás). Não liga nenhuma distro.</summary>
+    public Task<IReadOnlySet<string>> ListRunningAsync() => _running.GetAsync();
+
+    private static async Task<IReadOnlySet<string>> QueryRunningAsync()
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
@@ -101,11 +109,29 @@ public sealed class WslService
 
     public async Task<bool> IsRunningAsync(string distro) => (await ListRunningAsync()).Contains(distro);
 
-    public Task ShutdownAsync() =>
-        ProcessRunner.RunAsync(WslExe, ["--shutdown"], env: Env, timeout: TimeSpan.FromMinutes(1));
+    public async Task ShutdownAsync()
+    {
+        try
+        {
+            await ProcessRunner.RunAsync(WslExe, ["--shutdown"], env: Env, timeout: TimeSpan.FromMinutes(1));
+        }
+        finally
+        {
+            _running.Invalidate();
+        }
+    }
 
-    public Task TerminateAsync(string distro) =>
-        ProcessRunner.RunAsync(WslExe, ["--terminate", distro], env: Env, timeout: TimeSpan.FromMinutes(1));
+    public async Task TerminateAsync(string distro)
+    {
+        try
+        {
+            await ProcessRunner.RunAsync(WslExe, ["--terminate", distro], env: Env, timeout: TimeSpan.FromMinutes(1));
+        }
+        finally
+        {
+            _running.Invalidate();
+        }
+    }
 
     /// <summary>Liga a distro (só quando o usuário pede).</summary>
     public async Task StartAsync(string distro)
@@ -119,8 +145,9 @@ public sealed class WslService
     /// Executa um script de shell na distro. O script vai pelo stdin e os argumentos chegam em base64,
     /// então nenhum caminho ou texto do usuário passa por regras de aspas do Windows ou do shell.
     /// Dentro do script, os argumentos ficam disponíveis como $A1, $A2, ...
+    /// Todo "wsl.exe -d" liga a distro, então a lista de distros ligadas é consultada de novo depois.
     /// </summary>
-    public Task<ProcessResult> RunScriptAsync(
+    public async Task<ProcessResult> RunScriptAsync(
         string distro,
         string script,
         IReadOnlyList<string>? args = null,
@@ -144,7 +171,14 @@ public sealed class WslService
             prelude.Append($"A{i + 1}=\"$(printf '%s' \"${{{i + 1}#x}}\" | base64 -d)\"\n");
         }
 
-        return ProcessRunner.RunAsync(WslExe, argv, stdin: prelude + script + "\n", timeout: timeout, ct: ct);
+        try
+        {
+            return await ProcessRunner.RunAsync(WslExe, argv, stdin: prelude + script + "\n", timeout: timeout, ct: ct);
+        }
+        finally
+        {
+            _running.Invalidate();
+        }
     }
 
     /// <summary>Inicia um processo de longa duração na distro, com stdin e stdout redirecionados.</summary>
@@ -173,6 +207,7 @@ public sealed class WslService
 
         var p = new Process { StartInfo = psi };
         p.Start();
+        _running.Invalidate();
         return p;
     }
 

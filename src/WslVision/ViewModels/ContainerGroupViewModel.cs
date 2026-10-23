@@ -53,20 +53,7 @@ public sealed partial class ContainerGroupViewModel(string key, string? project,
     [ObservableProperty] private bool _anyStopped;
 
     /// <summary>Sincroniza a lista visível sem recriar as linhas (evita piscar e perder o hover).</summary>
-    public void SetVisible(IReadOnlyList<ContainerItemViewModel> visible)
-    {
-        for (var i = Items.Count - 1; i >= 0; i--)
-            if (!visible.Contains(Items[i]))
-                Items.RemoveAt(i);
-        for (var i = 0; i < visible.Count; i++)
-        {
-            var cur = Items.IndexOf(visible[i]);
-            if (cur < 0)
-                Items.Insert(i, visible[i]);
-            else if (cur != i)
-                Items.Move(cur, i);
-        }
-    }
+    public void SetVisible(IReadOnlyList<ContainerItemViewModel> visible) => Items.SyncTo(visible);
 
     public void Recompute()
     {

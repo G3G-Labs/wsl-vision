@@ -11,17 +11,48 @@
     <conv:EnumEqualsConverter x:Key="EnumEquals" />
     <conv:InverseBoolConverter x:Key="InverseBool" />
     <conv:NotNullConverter x:Key="NotNull" />
+    <conv:ToneBrushConverter x:Key="ToneBrush" />
+    <conv:ToneBrushConverter x:Key="ToneHalo" Part="Halo" />
+    <conv:ToneBrushConverter x:Key="ToneSoft" Part="Soft" />
+    <conv:ZeroToVisibilityConverter x:Key="ZeroToVis" />
+    <conv:ZeroToVisibilityConverter x:Key="NonZeroToVis" Invert="True" />
+    <conv:AllEqualConverter x:Key="AllEqual" />
+
+    <!--  Moldura de foco só para teclado (Tab), com cantos arredondados  -->
+    <Style x:Key="RoundFocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border BorderBrush="#6CC7FF" BorderThickness="2" CornerRadius="6" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <!--  Tipografia  -->
     <Style x:Key="PageTitle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="LineHeight" Value="28" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.Text}" />
     </Style>
     <Style x:Key="SectionTitle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.Text}" />
+    </Style>
+    <!--  Rótulo curto em caixa alta acima de grupos ("FAVORITOS", "AMBIENTE · DEBIAN")  -->
+    <Style x:Key="SectionLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.Text3}" />
+        <Setter Property="Typography.Capitals" Value="AllSmallCaps" />
+    </Style>
+    <Style x:Key="Metric" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.Text}" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
     </Style>
     <Style x:Key="Secondary" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -33,9 +64,10 @@
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style x:Key="ColumnHeader" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="11" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.Text3}" />
+        <Setter Property="Typography.Capitals" Value="AllSmallCaps" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style x:Key="Mono" TargetType="TextBlock">
@@ -51,10 +83,104 @@
 
     <!--  Superfícies  -->
     <Style x:Key="CardBorder" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="Background" Value="{StaticResource Wv.Surface}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Wv.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+    </Style>
+    <!--  Bloco interno de um cartão (ex.: estado do ambiente na bandeja)  -->
+    <Style x:Key="InsetBorder" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Wv.Inset}" />
+        <Setter Property="BorderBrush" Value="#26282D" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <!--
+        Botões do redesign. Templates próprios (e não os do WPF-UI) para os cantos, cores e alturas
+        baterem com o design: Primário (azul, uma ação por tela), Secundário (contorno), Fantasma (texto) e Ícone.
+    -->
+    <Style x:Key="WvButtonBase" TargetType="ButtonBase">
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource RoundFocusVisual}" />
+        <Setter Property="ToolTipService.InitialShowDelay" Value="250" />
+        <Setter Property="Background" Value="{StaticResource Wv.Raised}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Wv.BorderStrong}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.Text}" />
+        <Setter Property="Tag" Value="{StaticResource Wv.HoverStrong}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ButtonBase">
+                    <Border
+                        x:Name="Bg"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="8"
+                        SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.85" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="BtnSecondary" BasedOn="{StaticResource WvButtonBase}" TargetType="ButtonBase">
+        <Setter Property="Tag" Value="#2A2D32" />
+    </Style>
+    <Style x:Key="BtnPrimary" BasedOn="{StaticResource WvButtonBase}" TargetType="ButtonBase">
+        <Setter Property="Background" Value="{StaticResource Wv.Accent}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.OnAccent}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Tag" Value="{StaticResource Wv.AccentHover}" />
+    </Style>
+    <!--  Ações destrutivas (limpar, desfazer tudo): vermelho suave, para não competir com a ação principal  -->
+    <Style x:Key="BtnDanger" BasedOn="{StaticResource WvButtonBase}" TargetType="ButtonBase">
+        <Setter Property="Background" Value="{StaticResource Wv.RedSoft}" />
+        <Setter Property="BorderBrush" Value="#4A2C2A" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.Red}" />
+        <Setter Property="Tag" Value="#3A2523" />
+    </Style>
+    <Style x:Key="BtnGhost" BasedOn="{StaticResource WvButtonBase}" TargetType="ButtonBase">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.TextSoft}" />
+        <Setter Property="Padding" Value="10,0" />
+    </Style>
+    <Style x:Key="BtnIcon" BasedOn="{StaticResource BtnGhost}" TargetType="ButtonBase">
+        <Setter Property="Width" Value="40" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.Text2}" />
+    </Style>
+    <!--  Pílula clicável (pastas recentes)  -->
+    <Style x:Key="BtnChip" BasedOn="{StaticResource WvButtonBase}" TargetType="ButtonBase">
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontFamily" Value="{StaticResource Wv.Mono}" />
+        <Setter Property="Background" Value="{StaticResource Wv.Inset}" />
+        <Setter Property="BorderBrush" Value="#2A2D32" />
+        <Setter Property="Foreground" Value="{StaticResource Wv.TextSoft}" />
+        <Setter Property="Tag" Value="#2A2D32" />
     </Style>
     <Style x:Key="EmptyState" TargetType="Border" BasedOn="{StaticResource CardBorder}">
         <Setter Property="Padding" Value="24,56" />
@@ -96,78 +222,6 @@
         </Style.Triggers>
     </Style>
 
-    <!--  Moldura de foco só para teclado (Tab), com cantos arredondados  -->
-    <Style x:Key="RoundFocusVisual">
-        <Setter Property="Control.Template">
-            <Setter.Value>
-                <ControlTemplate>
-                    <Border BorderBrush="{DynamicResource TextFillColorPrimaryBrush}" BorderThickness="2" CornerRadius="6" />
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!--  Botões de ação coloridos pelo que fazem: verde liga, azul reinicia, vermelho para ou exclui.
-         O fundo é o tom suave da cor; ao passar o mouse, uma camada da própria cor escurece o botão.  -->
-    <Style x:Key="TintButton" TargetType="ButtonBase">
-        <Setter Property="Height" Value="32" />
-        <Setter Property="MinWidth" Value="32" />
-        <Setter Property="Padding" Value="10,0" />
-        <Setter Property="Margin" Value="2,0" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="FocusVisualStyle" Value="{StaticResource RoundFocusVisual}" />
-        <Setter Property="ToolTipService.InitialShowDelay" Value="250" />
-        <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ButtonBase">
-                    <Grid>
-                        <Border Background="{TemplateBinding Background}" CornerRadius="6" />
-                        <Border x:Name="Hover" Background="{TemplateBinding Foreground}" CornerRadius="6" Opacity="0" />
-                        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Grid>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Hover" Property="Opacity" Value="0.14" />
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Hover" Property="Opacity" Value="0.26" />
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.45" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-    <Style x:Key="TintSuccess" BasedOn="{StaticResource TintButton}" TargetType="ButtonBase">
-        <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}" />
-        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
-    </Style>
-    <Style x:Key="TintCritical" BasedOn="{StaticResource TintButton}" TargetType="ButtonBase">
-        <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBackgroundBrush}" />
-        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
-    </Style>
-    <Style x:Key="TintAccent" BasedOn="{StaticResource TintButton}" TargetType="ButtonBase">
-        <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-        <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-    </Style>
-    <Style x:Key="TintCaution" BasedOn="{StaticResource TintButton}" TargetType="ButtonBase">
-        <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBackgroundBrush}" />
-        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
-    </Style>
-    <!--  Excluir: vermelho só no ícone, para não competir com o Parar ao lado  -->
-    <Style x:Key="TintCriticalSubtle" BasedOn="{StaticResource TintButton}" TargetType="ButtonBase">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
-    </Style>
-    <Style x:Key="TintNeutralSubtle" BasedOn="{StaticResource TintButton}" TargetType="ButtonBase">
-        <Setter Property="Background" Value="Transparent" />
-    </Style>
 
     <Style x:Key="Dot" TargetType="Ellipse">
         <Setter Property="Width" Value="8" />
@@ -178,12 +232,12 @@
 
     <!--  Item do menu lateral: ícone + rótulo, com o indicador azul do Windows 11  -->
     <Style x:Key="NavRailItem" TargetType="RadioButton">
-        <Setter Property="Width" Value="68" />
-        <Setter Property="Height" Value="56" />
-        <Setter Property="Margin" Value="0,2" />
+        <Setter Property="Width" Value="60" />
+        <Setter Property="Height" Value="54" />
+        <Setter Property="Margin" Value="0,1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource RoundFocusVisual}" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="#A1A7B0" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
@@ -191,23 +245,26 @@
                         <Border
                             x:Name="Bg"
                             Background="Transparent"
-                            CornerRadius="6" />
+                            CornerRadius="8" />
                         <Border
                             x:Name="Indicator"
                             Width="3"
-                            Height="18"
+                            Height="20"
+                            Margin="-6,0,0,0"
                             HorizontalAlignment="Left"
-                            Background="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                            Background="#4CC2FF"
                             CornerRadius="2"
                             Visibility="Collapsed" />
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            <Setter TargetName="Bg" Property="Background" Value="#1C1E21" />
+                            <Setter Property="Foreground" Value="#ECEEF1" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            <Setter TargetName="Bg" Property="Background" Value="#1C1E21" />
+                            <Setter Property="Foreground" Value="#ECEEF1" />
                             <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Trigger>
@@ -219,11 +276,12 @@
 
     <!--  Botões segmentados (filtros)  -->
     <Style x:Key="SegmentItem" TargetType="RadioButton">
-        <Setter Property="Height" Value="32" />
-        <Setter Property="Padding" Value="12,0" />
-        <Setter Property="Margin" Value="2,0" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Margin" Value="1,0" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource RoundFocusVisual}" />
+        <Setter Property="Foreground" Value="#A1A7B0" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
@@ -238,11 +296,12 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            <Setter TargetName="Bg" Property="Background" Value="#1F2125" />
+                            <Setter Property="Foreground" Value="#ECEEF1" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                            <Setter TargetName="Bg" Property="Background" Value="#2A2D32" />
+                            <Setter Property="Foreground" Value="#ECEEF1" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

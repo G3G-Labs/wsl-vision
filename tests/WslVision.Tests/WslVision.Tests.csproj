@@ -14,8 +14,12 @@
     <Compile Include="..\..\src\WslVision\Services\WslConfigService.cs" Link="Linked\WslConfigService.cs" />
     <Compile Include="..\..\src\WslVision\Services\Docker\ComposeOrder.cs" Link="Linked\ComposeOrder.cs" />
     <Compile Include="..\..\src\WslVision\Models\DockerModels.cs" Link="Linked\DockerModels.cs" />
+    <Compile Include="..\..\src\WslVision\Models\Tone.cs" Link="Linked\Tone.cs" />
     <Compile Include="..\..\src\WslVision\Models\AppSettings.cs" Link="Linked\AppSettings.cs" />
     <Compile Include="..\..\src\WslVision\Services\SettingsService.cs" Link="Linked\SettingsService.cs" />
+    <Compile Include="..\..\src\WslVision\Services\CachedQuery.cs" Link="Linked\CachedQuery.cs" />
+    <Compile Include="..\..\src\WslVision\Services\DockerPolling.cs" Link="Linked\DockerPolling.cs" />
+    <Compile Include="..\..\src\WslVision\Services\LiveStream.cs" Link="Linked\LiveStream.cs" />
   </ItemGroup>
 
   <ItemGroup>

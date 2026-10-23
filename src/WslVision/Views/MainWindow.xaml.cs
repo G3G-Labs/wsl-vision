@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -33,7 +35,14 @@ public partial class MainWindow : FluentWindow
         DataContext = vm;
         InitializeComponent();
 
-        SystemThemeWatcher.Watch(this, WindowBackdropType.Mica, updateAccents: true);
+        // O redesign é escuro de propósito: o tema e a cor de destaque são fixados no App, sem seguir o Windows.
+        vm.Palette.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PaletteViewModel.IsOpen) && vm.Palette.IsOpen)
+                Dispatcher.BeginInvoke(() => { PaletteInput.Focus(); Keyboard.Focus(PaletteInput); }, DispatcherPriority.Input);
+            if (e.PropertyName == nameof(PaletteViewModel.Selected) && vm.Palette.Selected is { } sel)
+                PaletteList.ScrollIntoView(sel);
+        };
 
         vm.State.PropertyChanged += (_, e) =>
         {
@@ -45,10 +54,9 @@ public partial class MainWindow : FluentWindow
             if (e.PropertyName == nameof(Notifier.IsError))
             {
                 ToastIcon.Symbol = vm.Notifier.IsError ? SymbolRegular.ErrorCircle24 : SymbolRegular.CheckmarkCircle24;
-                ToastIcon.Foreground = Brush(vm.Notifier.IsError ? "SystemFillColorCriticalBrush" : "SystemFillColorSuccessBrush");
+                ToastIcon.Foreground = Brush(vm.Notifier.IsError ? "Wv.Red" : "Wv.Green");
             }
         };
-        ApplicationThemeManager.Changed += (_, _) => UpdateStatusDot();
 
         // Escala da interface: segue o "Tamanho do texto" do Windows ou o valor escolhido em Ajustes.
         settings.Changed += (_, _) => ApplyScale();
@@ -64,7 +72,28 @@ public partial class MainWindow : FluentWindow
         IsVisibleChanged += (_, _) => UpdateActivity();
         StateChanged += (_, _) => UpdateActivity();
         UpdateStatusDot();
-        ToastIcon.Foreground = Brush("SystemFillColorSuccessBrush");
+        ToastIcon.Foreground = Brush("Wv.Green");
+
+        SearchButton.Loaded += (_, _) => CenterSearch();
+        Brand.SizeChanged += (_, _) => CenterSearch();
+        SizeChanged += (_, _) => CenterSearch();
+    }
+
+    /// <summary>
+    /// O TitleBar põe o CenterContent logo depois do título, à esquerda. A margem leva a busca ao centro da janela,
+    /// sem nunca invadir a marca e o status.
+    /// </summary>
+    private void CenterSearch()
+    {
+        if (!SearchButton.IsLoaded)
+            return;
+        var m = SearchButton.Margin;
+        var slotLeft = SearchButton.TranslatePoint(new Point(0, 0), this).X - m.Left;
+        var brandRight = Brand.TranslatePoint(new Point(Brand.ActualWidth, 0), this).X + 16;
+        var target = Math.Max((ActualWidth - SearchButton.ActualWidth) / 2, brandRight);
+        var left = Math.Max(0, target - slotLeft);
+        if (Math.Abs(left - m.Left) > 0.5)
+            SearchButton.Margin = new Thickness(left, m.Top, m.Right, m.Bottom);
     }
 
     private void UpdateActivity()
@@ -109,8 +138,7 @@ public partial class MainWindow : FluentWindow
     private void UpdateStatusDot()
     {
         var s = _vm.State;
-        StatusDot.Fill = Brush(!s.IsDistroRunning ? "SystemFillColorNeutralBrush"
-            : s.IsDockerUp ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush");
+        StatusDot.Fill = Brush(!s.IsDistroRunning ? "Wv.Gray" : s.IsDockerUp ? "Wv.Green" : "Wv.Amber");
     }
 
     private static Brush Brush(string key) => Application.Current.TryFindResource(key) as Brush ?? Brushes.Gray;
@@ -158,4 +186,49 @@ public partial class MainWindow : FluentWindow
     private static extern bool SetProcessWorkingSetSize(IntPtr process, nint minimumWorkingSetSize, nint maximumWorkingSetSize);
 
     private void OnDismissToast(object sender, RoutedEventArgs e) => _vm.Notifier.Dismiss();
+
+    // ---- Paleta de comandos ----
+
+    private void OnPaletteKeyDown(object sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Down:
+                _vm.Palette.Move(1);
+                e.Handled = true;
+                break;
+            case Key.Up:
+                _vm.Palette.Move(-1);
+                e.Handled = true;
+                break;
+            case Key.Enter:
+                _ = _vm.Palette.RunAsync(null);
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                _vm.Palette.Close();
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void OnPaletteClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject d && ItemsControl.ContainerFromElement(PaletteList, d) is ListBoxItem { DataContext: PaletteItem item })
+            _ = _vm.Palette.RunAsync(item);
+    }
+
+    private void OnPaletteBackdrop(object sender, MouseButtonEventArgs e) => _vm.Palette.Close();
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        // Esc fecha a paleta mesmo com o foco fora da caixa de busca.
+        if (e.Key == Key.Escape && _vm.Palette.IsOpen)
+        {
+            _vm.Palette.Close();
+            e.Handled = true;
+            return;
+        }
+        base.OnPreviewKeyDown(e);
+    }
 }

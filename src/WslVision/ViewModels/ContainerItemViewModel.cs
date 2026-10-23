@@ -25,6 +25,13 @@ public sealed partial class ContainerItemViewModel : ObservableObject
     [ObservableProperty] private string? _composeWorkingDir;
     [ObservableProperty] private bool _isSelected;
 
+    // Barrinha de CPU: 4 núcleos inteiros enchem a barra, então 1 núcleo = 25%.
+    private const double CpuBarPerPercent = 0.25;
+
+    /// <summary>Tamanho das barrinhas de CPU e memória da linha, de 0 a 100.</summary>
+    [ObservableProperty] private double _cpuShare;
+    [ObservableProperty] private double _memShare;
+
     /// <summary>Nome curto: o serviço do Compose ("app", "db") ou o nome do container.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowFullName))]
@@ -91,14 +98,19 @@ public sealed partial class ContainerItemViewModel : ObservableObject
         }
     }
 
-    public void SetUsage(ContainerUsage? u)
+    /// <summary>Consumo da última amostra; a barrinha de memória é relativa a <paramref name="maxMemoryBytes"/> (o container que mais usa).</summary>
+    public void SetUsage(ContainerUsage? u, long maxMemoryBytes)
     {
-        if (u is null || !IsRunning)
-            return;
-        CpuPercent = u.CpuPercent;
-        MemoryBytes = u.MemoryBytes;
-        CpuText = Formatting.Percent(u.CpuPercent);
-        MemText = Formatting.Bytes(u.MemoryBytes);
+        if (u is not null && IsRunning)
+        {
+            CpuPercent = u.CpuPercent;
+            MemoryBytes = u.MemoryBytes;
+            CpuText = Formatting.Percent(u.CpuPercent);
+            MemText = Formatting.Bytes(u.MemoryBytes);
+        }
+        // Rodando com algum consumo, a barrinha nunca some de vez (mínimo de 2%).
+        CpuShare = IsRunning ? Math.Clamp(CpuPercent * CpuBarPerPercent, CpuPercent > 0 ? 2 : 0, 100) : 0;
+        MemShare = IsRunning ? Math.Clamp(100.0 * MemoryBytes / Math.Max(1, maxMemoryBytes), 2, 100) : 0;
     }
 }
 

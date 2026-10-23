@@ -334,7 +334,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     }
 
     [RelayCommand]
-    private void OpenSettingsFolder() => LauncherService.OpenUrl(SettingsService.Folder);
+    private void OpenSettingsFolder() => LauncherService.OpenUrl(_settings.Folder);
 }
 
 public sealed record ScaleOption(double Value, string Label)

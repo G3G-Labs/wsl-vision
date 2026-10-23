@@ -26,141 +26,212 @@
         <KeyBinding Command="{Binding PasteCommand}" Gesture="Ctrl+V" />
     </UserControl.InputBindings>
 
-    <Grid Margin="32,28,32,24">
+
+    <UserControl.Resources>
+        <!--  Local na coluna da esquerda; o da pasta aberta fica destacado  -->
+        <DataTemplate x:Key="PlaceTemplate" DataType="{x:Type vm:Place}">
+            <Button
+                x:Name="Btn"
+                Height="36"
+                Padding="10,0"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch"
+                Command="{Binding DataContext.GoToPlaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                CommandParameter="{Binding}"
+                Foreground="#C9CDD3"
+                Style="{StaticResource BtnGhost}"
+                ToolTip="{Binding Path}">
+                <DockPanel>
+                    <ui:SymbolIcon x:Name="Ico" Margin="0,0,10,0" DockPanel.Dock="Left" FontSize="15" Symbol="Folder24" />
+                    <ui:SymbolIcon Margin="6,0,0,0" AutomationProperties.Name="Pertence ao root" DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Symbol="LockClosed24"
+                                   Visibility="{Binding IsLocked, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock VerticalAlignment="Center" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Button>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                    <Setter TargetName="Ico" Property="Symbol" Value="Star24" />
+                    <Setter TargetName="Ico" Property="Filled" Value="True" />
+                    <Setter TargetName="Ico" Property="FontSize" Value="14" />
+                    <Setter TargetName="Ico" Property="Foreground" Value="{StaticResource Wv.Amber}" />
+                </DataTrigger>
+                <DataTrigger Value="True">
+                    <DataTrigger.Binding>
+                        <MultiBinding Converter="{StaticResource AllEqual}">
+                            <Binding Path="Path" />
+                            <Binding Path="DataContext.CurrentPath" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                        </MultiBinding>
+                    </DataTrigger.Binding>
+                    <Setter TargetName="Btn" Property="Background" Value="#1D2228" />
+                    <Setter TargetName="Btn" Property="Foreground" Value="{StaticResource Wv.Text}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24,28,24">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!--  Cabeçalho + ações da pasta atual  -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,12">
-            <WrapPanel VerticalAlignment="Bottom" DockPanel.Dock="Right">
-                <ui:Button Margin="0,0,8,8" Appearance="Primary" Command="{Binding OpenInVsCodeCommand}" Content="Abrir no VS Code" Icon="{ui:SymbolIcon Code24}" ToolTip="Ctrl+Shift+V" />
-                <ui:Button Margin="0,0,8,8" Appearance="Secondary" Command="{Binding OpenTerminalCommand}" Content="Terminal aqui" Icon="{ui:SymbolIcon WindowConsole20}" ToolTip="Ctrl+Shift+T" />
-                <ui:Button Margin="0,0,8,8" Appearance="Secondary" Command="{Binding OpenInExplorerCommand}" Content="Explorer" Icon="{ui:SymbolIcon FolderOpen24}" ToolTip="Ctrl+Shift+E" />
-                <ui:Button Margin="0,0,4,8" Appearance="Secondary" Command="{Binding CopyLinuxPathCommand}" Content="Copiar caminho" Icon="{ui:SymbolIcon Copy24}" ToolTip="Ctrl+Shift+C" />
-                <ui:Button Margin="0,0,0,8" AutomationProperties.Name="Fixar nos favoritos" Command="{Binding ToggleFavoriteCommand}" Style="{StaticResource IconButton}" ToolTip="Fixar nos favoritos e no menu da bandeja">
-                    <ui:Button.Icon>
-                        <ui:SymbolIcon Filled="{Binding IsFavorite}" Symbol="Star24" />
-                    </ui:Button.Icon>
-                </ui:Button>
-            </WrapPanel>
-            <StackPanel Margin="0,0,16,8">
-                <TextBlock Style="{StaticResource PageTitle}" Text="Arquivos" />
-                <!--  Trilha de pastas  -->
-                <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Breadcrumbs}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:Crumb}">
-                            <StackPanel Orientation="Horizontal">
-                                <ui:Button
-                                    Padding="6,2"
-                                    Style="{StaticResource SubtleButton}"
-                                    Command="{Binding DataContext.GoToCrumbCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    CommandParameter="{Binding}"
-                                    Content="{Binding Name}"
-                                    FontFamily="Cascadia Mono, Consolas"
-                                    FontSize="13" />
-                                <ui:SymbolIcon Margin="0,0,0,0" VerticalAlignment="Center" FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Symbol="ChevronRight24" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+        <TextBlock Grid.Row="0" Margin="0,0,0,14" Style="{StaticResource PageTitle}" Text="Arquivos" />
+
+        <!--  Barra de caminho: navegação, formato Linux/Windows e copiar no mesmo lugar; à direita, a ação principal  -->
+        <DockPanel Grid.Row="1" Margin="0,0,0,14">
+            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                <Button Width="36" Height="36" AutomationProperties.Name="Voltar" Command="{Binding BackCommand}" Style="{StaticResource BtnIcon}" ToolTip="Voltar (Alt+←)">
+                    <ui:SymbolIcon FontSize="16" Symbol="ArrowLeft24" />
+                </Button>
+                <Button Width="36" Height="36" Margin="2,0,8,0" AutomationProperties.Name="Pasta acima" Command="{Binding UpCommand}" Style="{StaticResource BtnIcon}" ToolTip="Pasta acima (Alt+↑)">
+                    <ui:SymbolIcon FontSize="16" Symbol="ArrowUp24" />
+                </Button>
             </StackPanel>
+            <StackPanel Margin="8,0,0,0" DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Margin="0,0,8,0" Command="{Binding OpenInVsCodeCommand}" CommandParameter="{Binding Selected}" Style="{StaticResource BtnPrimary}" ToolTip="Ctrl+Shift+V">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Margin="0,0,7,0" FontSize="14" Symbol="Code24" />
+                        <TextBlock MaxWidth="240" VerticalAlignment="Center" Text="{Binding CodeLabel}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Button>
+                <Button Margin="0,0,8,0" Padding="12,0" Command="{Binding OpenTerminalCommand}" CommandParameter="{Binding Selected}" Content="Terminal" Style="{StaticResource BtnSecondary}" ToolTip="Terminal na pasta (Ctrl+Shift+T)" />
+                <Button Padding="12,0" Command="{Binding OpenInExplorerCommand}" CommandParameter="{Binding Selected}" Content="Explorer" Style="{StaticResource BtnSecondary}" ToolTip="Abrir no Explorer (Ctrl+Shift+E)" />
+            </StackPanel>
+            <Border Height="36" Padding="6,0,4,0" Background="{StaticResource Wv.Surface}" BorderBrush="#26282D" BorderThickness="1" CornerRadius="8">
+                <DockPanel>
+                    <Button Width="32" Height="28" Margin="4,0,0,0" AutomationProperties.Name="Copiar caminho" Command="{Binding CopyCurrentPathCommand}" DockPanel.Dock="Right" Style="{StaticResource BtnIcon}" ToolTip="Copiar caminho (Ctrl+Shift+C)">
+                        <ui:SymbolIcon FontSize="15" Symbol="Copy24" />
+                    </Button>
+                    <Button Width="32" Height="28" AutomationProperties.Name="Fixar nos favoritos" Command="{Binding ToggleFavoriteCommand}" DockPanel.Dock="Right" Style="{StaticResource BtnIcon}" ToolTip="Fixar nos favoritos e no menu da bandeja">
+                        <ui:SymbolIcon FontSize="15" Filled="{Binding IsFavorite}" Symbol="Star24">
+                            <ui:SymbolIcon.Style>
+                                <Style TargetType="ui:SymbolIcon">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource Wv.Amber}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SymbolIcon.Style>
+                        </ui:SymbolIcon>
+                    </Button>
+                    <Border Margin="6,0,2,0" Padding="2" VerticalAlignment="Center" Background="{StaticResource Wv.Layer}" CornerRadius="6" DockPanel.Dock="Right">
+                        <StackPanel AutomationProperties.Name="Formato do caminho" Orientation="Horizontal">
+                            <RadioButton Height="24" Padding="8,0" Content="Linux" FontSize="12" GroupName="PathFormat" IsChecked="{Binding IsLinuxPath}" Style="{StaticResource SegmentItem}" />
+                            <RadioButton Height="24" Padding="8,0" Content="Windows" FontSize="12" GroupName="PathFormat" IsChecked="{Binding IsWindowsPath}" Style="{StaticResource SegmentItem}" />
+                        </StackPanel>
+                    </Border>
+                    <Grid ClipToBounds="True">
+                        <!--  Linux: trilha clicável  -->
+                        <ItemsControl VerticalAlignment="Center" AutomationProperties.Name="Caminho" ItemsSource="{Binding Breadcrumbs}" Visibility="{Binding IsLinuxPath, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:Crumb}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="Sep" Margin="1,0" VerticalAlignment="Center" FontSize="12" Foreground="#4A4E55" Text="/" />
+                                        <Button
+                                            Height="28"
+                                            Padding="7,0"
+                                            Command="{Binding DataContext.GoToCrumbCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{Binding Name}"
+                                            FontFamily="{StaticResource Wv.Mono}"
+                                            FontSize="12.5"
+                                            Foreground="{StaticResource Wv.Text2}"
+                                            Style="{StaticResource BtnGhost}" />
+                                    </StackPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource PreviousData}}" Value="{x:Null}">
+                                            <Setter TargetName="Sep" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <!--  Windows: o caminho que o Explorer entende  -->
+                        <TextBox
+                            Margin="4,0"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="Caminho no Windows"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            FontFamily="{StaticResource Wv.Mono}"
+                            FontSize="12.5"
+                            Foreground="{StaticResource Wv.Text}"
+                            IsReadOnly="True"
+                            Style="{x:Null}"
+                            CaretBrush="{StaticResource Wv.Text}"
+                            Text="{Binding WindowsPath, Mode=OneWay}"
+                            Visibility="{Binding IsWindowsPath, Converter={StaticResource BoolToVis}}" />
+                    </Grid>
+                </DockPanel>
+            </Border>
         </DockPanel>
 
-        <!--  Barra secundária: navegação e operações  -->
-        <WrapPanel Grid.Row="1" Margin="0,0,0,12">
-            <ui:Button AutomationProperties.Name="Voltar" Command="{Binding BackCommand}" Icon="{ui:SymbolIcon ArrowLeft24}" Style="{StaticResource IconButton}" ToolTip="Voltar (Alt+←)" />
-            <ui:Button AutomationProperties.Name="Pasta acima" Command="{Binding UpCommand}" Icon="{ui:SymbolIcon ArrowUp24}" Style="{StaticResource IconButton}" ToolTip="Pasta acima (Alt+↑)" />
-            <ui:Button AutomationProperties.Name="Atualizar" Command="{Binding LoadCommand}" Icon="{ui:SymbolIcon ArrowSync24}" Style="{StaticResource IconButton}" ToolTip="Atualizar (F5)" />
-            <Border Width="1" Height="24" Margin="8,0" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
-            <ui:Button Margin="0,0,4,0" Style="{StaticResource SubtleButton}" Command="{Binding NewFolderCommand}" Content="Nova pasta" Icon="{ui:SymbolIcon FolderAdd24}" ToolTip="Ctrl+Shift+N" />
-            <ui:Button Margin="0,0,4,0" Style="{StaticResource SubtleButton}" Command="{Binding PasteCommand}" Content="Colar aqui" Icon="{ui:SymbolIcon DocumentCopy24}"
-                       Visibility="{Binding HasClipboard, Converter={StaticResource BoolToVis}}" />
-            <ui:Button Command="{Binding ToggleHiddenCommand}" Content="{Binding HiddenToggleLabel}" Style="{StaticResource SubtleButton}">
-                <ui:Button.Icon>
-                    <ui:SymbolIcon Symbol="{Binding HiddenToggleIcon}" />
-                </ui:Button.Icon>
-            </ui:Button>
-        </WrapPanel>
-
-        <ui:InfoBar
-            Grid.Row="2"
-            Margin="0,0,0,12"
-            IsClosable="False"
-            IsOpen="{Binding IsProtected}"
-            Message="Você pode ver os arquivos. Para criar, mover ou apagar, o app faz a operação por dentro do Linux como root e pede sua confirmação antes."
-            Severity="Warning"
-            Title="Esta pasta não é sua." />
-
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="230" />
+                <ColumnDefinition Width="220" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <!--  Favoritos e locais  -->
-            <ScrollViewer Grid.Column="0" Margin="0,0,16,0" VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <TextBlock Margin="10,0,0,6" Style="{StaticResource ColumnHeader}" Text="Favoritos" />
+            <ScrollViewer Grid.Column="0" Margin="0,0,14,0" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="0,0,10,0">
+                    <TextBlock Margin="10,0,0,6" Style="{StaticResource SectionLabel}" Text="FAVORITOS" />
                     <TextBlock Margin="10,0,0,8" Style="{StaticResource Caption}" Text="Fixe pastas com a estrela."
                                Visibility="{Binding HasNoFavorites, Converter={StaticResource BoolToVis}}" />
-                    <ItemsControl ItemsSource="{Binding Favorites}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:Place}">
-                                <ui:Button
-                                    Height="40"
-                                    Padding="10,0"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Left"
-                                    Style="{StaticResource SubtleButton}"
-                                    Command="{Binding DataContext.GoToPlaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    CommandParameter="{Binding}"
-                                    ToolTip="{Binding Path}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Margin="0,0,10,0" Filled="True" Foreground="{DynamicResource SystemFillColorCautionBrush}" Symbol="Star24" />
-                                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                </ui:Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Margin="10,16,0,6" Style="{StaticResource ColumnHeader}" Text="{Binding Distro}" />
-                    <ItemsControl ItemsSource="{Binding Places}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:Place}">
-                                <ui:Button
-                                    Height="40"
-                                    Padding="10,0"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Left"
-                                    Style="{StaticResource SubtleButton}"
-                                    Command="{Binding DataContext.GoToPlaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    CommandParameter="{Binding}"
-                                    ToolTip="{Binding Path}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Margin="0,0,10,0" Symbol="Folder24" />
-                                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                </ui:Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding Favorites}" ItemTemplate="{StaticResource PlaceTemplate}" />
+                    <TextBlock Margin="10,16,0,6" Style="{StaticResource SectionLabel}" Text="{Binding Distro}" />
+                    <ItemsControl ItemsSource="{Binding Places}" ItemTemplate="{StaticResource PlaceTemplate}" />
                 </StackPanel>
             </ScrollViewer>
 
             <!--  Conteúdo da pasta  -->
-            <Border Grid.Column="1" Style="{StaticResource CardBorder}">
+            <Border Grid.Column="1" ClipToBounds="True" Style="{StaticResource CardBorder}">
                 <Grid>
                     <DockPanel Visibility="{Binding PermissionDenied, Converter={StaticResource InverseBoolToVis}}">
-                        <Grid Height="40" Margin="16,0,8,0" DockPanel.Dock="Top">
+                        <!--  Pasta do root: dá para ver; alterar passa por confirmação  -->
+                        <Border Padding="14,10" Background="{StaticResource Wv.AmberSoft}" BorderBrush="#40F0B13B" BorderThickness="0,0,0,1" DockPanel.Dock="Top"
+                                Visibility="{Binding IsProtected, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Margin="0,0,10,0" FontSize="15" Foreground="{StaticResource Wv.AmberText}" Symbol="LockClosed24" />
+                                <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Wv.AmberText}" TextWrapping="Wrap"
+                                           Text="Pasta do root: você pode ver. Para alterar, o app faz por dentro do Linux como root e pede confirmação." />
+                            </StackPanel>
+                        </Border>
+
+                        <!--  Contagem e operações da pasta  -->
+                        <Border Padding="14,8,8,8" BorderBrush="{StaticResource Wv.Border}" BorderThickness="0,0,0,1" DockPanel.Dock="Top">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Button Height="30" Margin="0,0,2,0" Command="{Binding PasteCommand}" Foreground="#C9CDD3" Style="{StaticResource BtnGhost}" ToolTip="Ctrl+V"
+                                            Visibility="{Binding HasClipboard, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Margin="0,0,6,0" FontSize="14" Symbol="ClipboardPaste24" />
+                                            <TextBlock VerticalAlignment="Center" Text="Colar aqui" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Height="30" Margin="0,0,2,0" Command="{Binding NewFolderCommand}" Foreground="#C9CDD3" Style="{StaticResource BtnGhost}" ToolTip="Ctrl+Shift+N">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Margin="0,0,6,0" FontSize="14" Symbol="Add24" />
+                                            <TextBlock VerticalAlignment="Center" Text="Nova pasta" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Height="30" Margin="0,0,2,0" Command="{Binding ToggleHiddenCommand}" Content="{Binding HiddenToggleLabel}" Foreground="#C9CDD3" Style="{StaticResource BtnGhost}" />
+                                    <Button Width="30" Height="30" AutomationProperties.Name="Atualizar" Command="{Binding LoadCommand}" Style="{StaticResource BtnIcon}" ToolTip="Atualizar (F5)">
+                                        <ui:SymbolIcon FontSize="14" Symbol="ArrowSync24" />
+                                    </Button>
+                                </StackPanel>
+                                <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding CountLabel}" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                        </Border>
+
+                        <Grid Margin="14,8,8,6" DockPanel.Dock="Top">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="140" />
@@ -172,25 +243,15 @@
                             <TextBlock Grid.Column="2" Margin="0,0,16,0" HorizontalAlignment="Right" Style="{StaticResource ColumnHeader}" Text="Tamanho" />
                             <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeader}" Text="Dono" />
                         </Grid>
-                        <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" DockPanel.Dock="Top" />
 
-                        <!--  Rodapé: arrastar do Windows, paginação e status  -->
-                        <DockPanel Margin="16,8" DockPanel.Dock="Bottom" LastChildFill="False">
-                            <TextBlock VerticalAlignment="Center" DockPanel.Dock="Left" Style="{StaticResource Caption}" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                            <ui:Button Appearance="Secondary" Command="{Binding ShowMoreCommand}" Content="Mostrar mais itens" DockPanel.Dock="Right"
-                                       Visibility="{Binding IsTruncated, Converter={StaticResource BoolToVis}}" />
-                        </DockPanel>
-                        <Border
-                            Margin="12,8,12,0"
-                            Padding="14,10"
-                            BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            DockPanel.Dock="Bottom">
-                            <StackPanel Orientation="Horizontal">
-                                <ui:SymbolIcon Margin="0,0,10,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Symbol="ArrowUpload24" />
-                                <TextBlock Style="{StaticResource Caption}" Text="Arraste arquivos do Windows para cá para copiá-los para esta pasta. Arraste daqui para o Explorer para levar para o Windows." />
-                            </StackPanel>
+                        <!--  Rodapé: dicas e paginação  -->
+                        <Border Padding="14,8" BorderBrush="{StaticResource Wv.Border}" BorderThickness="0,1,0,0" DockPanel.Dock="Bottom">
+                            <DockPanel LastChildFill="True">
+                                <Button Height="28" Margin="8,0,0,0" Command="{Binding ShowMoreCommand}" Content="Mostrar mais itens" DockPanel.Dock="Right" FontSize="12" Style="{StaticResource BtnSecondary}"
+                                        Visibility="{Binding IsTruncated, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Wv.Text3}" TextTrimming="CharacterEllipsis"
+                                           Text="Duplo clique abre · arraste do Windows para copiar para cá · clique direito para mais ações" />
+                            </DockPanel>
                         </Border>
 
                         <ListBox
@@ -266,11 +327,16 @@
 
                     <!--  Sem permissão para listar  -->
                     <StackPanel Margin="24,56" HorizontalAlignment="Center" Visibility="{Binding PermissionDenied, Converter={StaticResource BoolToVis}}">
-                        <ui:SymbolIcon HorizontalAlignment="Center" FontSize="40" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Symbol="LockClosed24" />
+                        <ui:SymbolIcon HorizontalAlignment="Center" FontSize="36" Foreground="{StaticResource Wv.Text3}" Symbol="LockClosed24" />
                         <TextBlock Margin="0,12,0,4" HorizontalAlignment="Center" Style="{StaticResource SectionTitle}" Text="Sem permissão para abrir esta pasta" />
-                        <TextBlock MaxWidth="440" HorizontalAlignment="Center" Style="{StaticResource Secondary}" TextAlignment="Center"
+                        <TextBlock MaxWidth="440" HorizontalAlignment="Center" Style="{StaticResource Secondary}" TextAlignment="Center" TextWrapping="Wrap"
                                    Text="Ela pertence a outro usuário. O app pode listá-la por dentro do Linux como root, depois da sua confirmação." />
-                        <ui:Button Margin="0,16,0,0" HorizontalAlignment="Center" Appearance="Primary" Command="{Binding ViewAsRootCommand}" Content="Ver como root" Icon="{ui:SymbolIcon LockClosed24}" />
+                        <Button Margin="0,16,0,0" HorizontalAlignment="Center" Command="{Binding ViewAsRootCommand}" Style="{StaticResource BtnPrimary}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Margin="0,0,7,0" FontSize="14" Symbol="LockClosed24" />
+                                <TextBlock VerticalAlignment="Center" Text="Ver como root" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -278,10 +344,15 @@
             <!--  Distro desligada  -->
             <Border Grid.Column="0" Grid.ColumnSpan="2" VerticalAlignment="Top" Style="{StaticResource EmptyState}" Visibility="{Binding State.IsDistroOff, Converter={StaticResource BoolToVis}}">
                 <StackPanel HorizontalAlignment="Center">
-                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="40" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Symbol="Power24" />
+                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="36" Foreground="{StaticResource Wv.Text3}" Symbol="Power24" />
                     <TextBlock Margin="0,12,0,4" HorizontalAlignment="Center" Style="{StaticResource SectionTitle}" Text="A distro está desligada" />
                     <TextBlock HorizontalAlignment="Center" Style="{StaticResource Secondary}" Text="Ligue a distro para navegar pelos arquivos." />
-                    <ui:Button Margin="0,16,0,0" HorizontalAlignment="Center" Appearance="Primary" Click="OnStartDistro" Content="Ligar a distro" Icon="{ui:SymbolIcon Play24}" />
+                    <Button Margin="0,16,0,0" HorizontalAlignment="Center" Click="OnStartDistro" Style="{StaticResource BtnPrimary}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Margin="0,0,7,0" FontSize="13" Filled="True" Symbol="Play24" />
+                            <TextBlock VerticalAlignment="Center" Text="Ligar a distro" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Border>
         </Grid>

@@ -26,6 +26,17 @@ public static class Formatting
 
     public static string Percent(double p) => p.ToString(p < 10 ? "0.0" : "0", Pt) + "%";
 
+    /// <summary>"5 h 12 min", "3 min", "2 dias".</summary>
+    public static string Duration(double seconds)
+    {
+        var t = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        if (t.TotalDays >= 2)
+            return $"{(int)t.TotalDays} dias";
+        if (t.TotalHours >= 1)
+            return t.Minutes > 0 ? $"{(int)t.TotalHours} h {t.Minutes} min" : $"{(int)t.TotalHours} h";
+        return $"{Math.Max(1, t.Minutes)} min";
+    }
+
     public static string Date(DateTimeOffset d)
     {
         var local = d.LocalDateTime;

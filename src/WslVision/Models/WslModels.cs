@@ -33,7 +33,8 @@ public sealed record WslMetricsSample(
     long MemAvailableBytes,
     double CpuPercent,
     long DiskUsedBytes,
-    long DiskSizeBytes)
+    long DiskSizeBytes,
+    double UptimeSeconds = 0)
 {
     public long MemUsedBytes => Math.Max(0, MemTotalBytes - MemAvailableBytes);
 }

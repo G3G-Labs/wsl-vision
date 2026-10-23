@@ -10,265 +10,250 @@
     PreviewKeyDown="OnPreviewKeyDown"
     mc:Ignorable="d">
 
+    <!--  Um cartão por projeto do Compose; serviços em linhas; logs num painel ao lado (a lista continua visível)  -->
     <UserControl.Resources>
-        <!--  Mesmas colunas no cabeçalho, nos grupos e nas linhas  -->
-        <Style x:Key="Columns" TargetType="Grid">
-            <Setter Property="Margin" Value="8,0,8,0" />
+        <GridLength x:Key="ColStatus">112</GridLength>
+        <GridLength x:Key="ColPort">130</GridLength>
+        <GridLength x:Key="ColUptime">170</GridLength>
+        <GridLength x:Key="ColCpu">96</GridLength>
+        <GridLength x:Key="ColMem">104</GridLength>
+        <GridLength x:Key="ColActions">128</GridLength>
+
+        <Style x:Key="MiniBar" TargetType="ProgressBar">
+            <Setter Property="Height" Value="3" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="100" />
+            <Setter Property="Margin" Value="0,4,12,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid>
+                            <Border Background="{StaticResource Wv.Track}" CornerRadius="2" />
+                            <Border x:Name="PART_Track" />
+                            <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{StaticResource Wv.Accent}" CornerRadius="2" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
-        <GridLength x:Key="ColStatus">124</GridLength>
-        <GridLength x:Key="ColPort">140</GridLength>
-        <GridLength x:Key="ColCpu">64</GridLength>
-        <GridLength x:Key="ColMem">84</GridLength>
-        <GridLength x:Key="ColActions">220</GridLength>
+
+        <!--  Selo de status do projeto (texto + ponto, nunca só a cor)  -->
+        <Style x:Key="GroupPill" TargetType="Border">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{Binding Status, Converter={StaticResource ToneSoft}}" />
+            <Setter Property="TextElement.Foreground" Value="{Binding Status, Converter={StaticResource ToneBrush}}" />
+            <Setter Property="TextElement.FontSize" Value="12" />
+            <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+        </Style>
     </UserControl.Resources>
 
-    <Grid Margin="32,28,32,24">
+    <Grid Margin="28,24,28,24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  Cabeçalho  -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,20">
-            <StackPanel VerticalAlignment="Bottom" DockPanel.Dock="Right" Orientation="Horizontal">
+        <!--  Cabeçalho: título e resumo à esquerda; busca, filtro e a ação principal à direita  -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,16">
+            <WrapPanel VerticalAlignment="Center" DockPanel.Dock="Right">
                 <StackPanel Margin="0,0,12,0" VerticalAlignment="Center" Orientation="Horizontal" Visibility="{Binding State.IsStartingEnvironment, Converter={StaticResource BoolToVis}}">
-                    <ui:ProgressRing Width="18" Height="18" Margin="0,0,8,0" IsIndeterminate="{Binding State.IsStartingEnvironment}" />
-                    <TextBlock VerticalAlignment="Center" Style="{StaticResource Secondary}" Text="{Binding State.EnvironmentStep}" />
+                    <ui:ProgressRing Width="16" Height="16" Margin="0,0,8,0" IsIndeterminate="{Binding State.IsStartingEnvironment}" />
+                    <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Wv.Text2}" Text="{Binding State.EnvironmentStep}" />
                 </StackPanel>
-                <ui:Button
-                    Margin="0,0,12,0"
-                    Appearance="Primary"
-                    AutomationProperties.HelpText="Liga a distro, o Docker e os projetos marcados para iniciar junto"
-                    Command="{Binding StartEnvironmentCommand}"
-                    Content="Iniciar ambiente"
-                    Icon="{ui:SymbolIcon Play24}"
-                    IsEnabled="{Binding State.IsStartingEnvironment, Converter={StaticResource InverseBool}}"
-                    ToolTip="Liga a distro, o Docker e os projetos marcados com “Iniciar com o ambiente”"
-                    Visibility="{Binding ShowStartEnvironment, Converter={StaticResource BoolToVis}}" />
-                <Border
-                    Margin="0,0,12,0"
-                    Background="{DynamicResource SystemFillColorSuccessBackgroundBrush}"
-                    Style="{StaticResource Pill}"
-                    Visibility="{Binding State.IsDockerUp, Converter={StaticResource BoolToVis}}">
+                <ui:TextBox
+                    x:Name="SearchBox"
+                    Width="260"
+                    Height="34"
+                    Margin="0,0,8,0"
+                    Padding="8,6"
+                    AutomationProperties.Name="Buscar containers (Ctrl+F)"
+                    ClearButtonEnabled="True"
+                    FontSize="13"
+                    Icon="{ui:SymbolIcon Search24}"
+                    PlaceholderText="Buscar serviço, imagem ou projeto"
+                    Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"
+                    Visibility="{Binding State.IsDockerUp, Converter={StaticResource BoolToVis}}" />
+                <Border Margin="0,0,8,0" Padding="3" Background="{StaticResource Wv.Surface}" BorderBrush="#26282D" BorderThickness="1" CornerRadius="9"
+                        Visibility="{Binding State.IsDockerUp, Converter={StaticResource BoolToVis}}">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Fill="{DynamicResource SystemFillColorSuccessBrush}" Style="{StaticResource Dot}" />
-                        <TextBlock FontSize="13" Foreground="{DynamicResource SystemFillColorSuccessBrush}" Text="Docker ligado" />
+                        <RadioButton GroupName="Filter" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=All}" Style="{StaticResource SegmentItem}">
+                            <TextBlock FontSize="13"><Run Text="Todos " /><Run Foreground="{StaticResource Wv.Text3}" Text="{Binding CountAll, Mode=OneWay}" /></TextBlock>
+                        </RadioButton>
+                        <RadioButton GroupName="Filter" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=Running}" Style="{StaticResource SegmentItem}">
+                            <TextBlock FontSize="13"><Run Text="Rodando " /><Run Foreground="{StaticResource Wv.Text3}" Text="{Binding CountRunning, Mode=OneWay}" /></TextBlock>
+                        </RadioButton>
+                        <RadioButton GroupName="Filter" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=Stopped}" Style="{StaticResource SegmentItem}">
+                            <TextBlock FontSize="13"><Run Text="Parados " /><Run Foreground="{StaticResource Wv.Text3}" Text="{Binding CountStopped, Mode=OneWay}" /></TextBlock>
+                        </RadioButton>
+                        <RadioButton GroupName="Filter" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=Error}" Style="{StaticResource SegmentItem}">
+                            <TextBlock FontSize="13"><Run Text="Com erro " /><Run Foreground="{StaticResource Wv.Text3}" Text="{Binding CountError, Mode=OneWay}" /></TextBlock>
+                        </RadioButton>
                     </StackPanel>
                 </Border>
-                <Button
-                    Height="34"
-                    Command="{Binding ToggleDockerCommand}"
-                    Style="{StaticResource TintCritical}"
-                    Visibility="{Binding State.IsDockerUp, Converter={StaticResource BoolToVis}}">
+                <Button Command="{Binding Env.StartCommand}" IsEnabled="{Binding State.IsStartingEnvironment, Converter={StaticResource InverseBool}}"
+                        AutomationProperties.HelpText="Liga a distro, o Docker e os projetos marcados para iniciar junto"
+                        Style="{StaticResource BtnPrimary}" ToolTip="Liga a distro, o Docker e os projetos marcados com “Com o ambiente”"
+                        Visibility="{Binding Env.NeedsStart, Converter={StaticResource BoolToVis}}">
                     <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Margin="0,0,6,0" FontSize="16" Symbol="Power24" />
-                        <TextBlock VerticalAlignment="Center" Text="Parar Docker" />
+                        <ui:SymbolIcon Margin="0,0,7,0" FontSize="14" Filled="True" Symbol="Play24" />
+                        <TextBlock VerticalAlignment="Center" Text="Iniciar ambiente" />
                     </StackPanel>
                 </Button>
-            </StackPanel>
-            <StackPanel>
+            </WrapPanel>
+            <StackPanel VerticalAlignment="Center">
                 <TextBlock Style="{StaticResource PageTitle}" Text="Containers" />
-                <TextBlock Margin="0,4,0,0" Style="{StaticResource Secondary}" Text="{Binding Subtitle}" />
+                <TextBlock Margin="0,2,0,0" FontSize="13" Foreground="{StaticResource Wv.Text2}" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
             </StackPanel>
         </DockPanel>
 
-        <!--  Busca e filtros  -->
-        <WrapPanel Grid.Row="1" Margin="0,0,0,16" Visibility="{Binding State.IsDockerUp, Converter={StaticResource BoolToVis}}">
-            <ui:TextBox
-                x:Name="SearchBox"
-                Width="340"
-                Margin="0,0,12,8"
-                AutomationProperties.Name="Buscar containers (Ctrl+F)"
-                ClearButtonEnabled="True"
-                Icon="{ui:SymbolIcon Search24}"
-                PlaceholderText="Buscar por nome, imagem ou projeto"
-                Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
-            <Border Margin="0,0,0,8" Padding="2" Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="8">
-                <StackPanel Orientation="Horizontal">
-                    <RadioButton GroupName="Filter" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=All}" Style="{StaticResource SegmentItem}">
-                        <TextBlock><Run Text="Todos " /><Run Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding CountAll, Mode=OneWay}" /></TextBlock>
-                    </RadioButton>
-                    <RadioButton GroupName="Filter" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=Running}" Style="{StaticResource SegmentItem}">
-                        <TextBlock><Run Text="Rodando " /><Run Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding CountRunning, Mode=OneWay}" /></TextBlock>
-                    </RadioButton>
-                    <RadioButton GroupName="Filter" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=Stopped}" Style="{StaticResource SegmentItem}">
-                        <TextBlock><Run Text="Parados " /><Run Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding CountStopped, Mode=OneWay}" /></TextBlock>
-                    </RadioButton>
-                    <RadioButton GroupName="Filter" IsChecked="{Binding Filter, Converter={StaticResource EnumEquals}, ConverterParameter=Error}" Style="{StaticResource SegmentItem}">
-                        <TextBlock><Run Text="Com erro " /><Run Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding CountError, Mode=OneWay}" /></TextBlock>
-                    </RadioButton>
-                </StackPanel>
-            </Border>
-        </WrapPanel>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-        <!--  Estados: distro desligada, Docker desligado, carregando, vazio, lista  -->
-        <Grid Grid.Row="2">
-            <Border VerticalAlignment="Top" Style="{StaticResource EmptyState}" Visibility="{Binding State.IsDistroOff, Converter={StaticResource BoolToVis}}">
+            <!--  Estados: distro desligada, Docker desligado, carregando, vazio  -->
+            <Border Grid.Column="0" VerticalAlignment="Top" Style="{StaticResource EmptyState}" Visibility="{Binding State.IsDistroOff, Converter={StaticResource BoolToVis}}">
                 <StackPanel HorizontalAlignment="Center">
-                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="40" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Symbol="Power24" />
+                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="36" Foreground="{StaticResource Wv.Text3}" Symbol="Power24" />
                     <TextBlock Margin="0,12,0,4" HorizontalAlignment="Center" Style="{StaticResource SectionTitle}" Text="A distro está desligada" />
                     <TextBlock MaxWidth="440" HorizontalAlignment="Center" Style="{StaticResource Secondary}" Text="O app não liga a distro sozinho, para não ocupar memória sem você pedir." TextAlignment="Center" />
                     <StackPanel Margin="0,16,0,0" HorizontalAlignment="Center" Orientation="Horizontal">
-                        <ui:Button Margin="0,0,8,0" Appearance="Primary" Command="{Binding StartEnvironmentCommand}" Content="Iniciar ambiente" Icon="{ui:SymbolIcon Play24}"
-                                   ToolTip="Distro, Docker e os projetos marcados, de uma vez" />
-                        <ui:Button Appearance="Secondary" Command="{Binding StartDistroCommand}" Content="Só ligar a distro" />
+                        <Button Margin="0,0,8,0" Command="{Binding Env.StartCommand}" Content="Iniciar ambiente" Style="{StaticResource BtnPrimary}" ToolTip="Distro, Docker e os projetos marcados, de uma vez" />
+                        <Button Command="{Binding StartDistroCommand}" Content="Só ligar a distro" Style="{StaticResource BtnSecondary}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
-
-            <Border VerticalAlignment="Top" Style="{StaticResource EmptyState}" Visibility="{Binding State.IsDockerOff, Converter={StaticResource BoolToVis}}">
+            <Border Grid.Column="0" VerticalAlignment="Top" Style="{StaticResource EmptyState}" Visibility="{Binding State.IsDockerOff, Converter={StaticResource BoolToVis}}">
                 <StackPanel HorizontalAlignment="Center">
-                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="40" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Symbol="Box24" />
+                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="36" Foreground="{StaticResource Wv.Text3}" Symbol="Box24" />
                     <TextBlock Margin="0,12,0,4" HorizontalAlignment="Center" Style="{StaticResource SectionTitle}" Text="O Docker está desligado" />
                     <TextBlock MaxWidth="440" HorizontalAlignment="Center" Style="{StaticResource Secondary}" Text="Ligue o serviço para ver e controlar seus containers. A distro continua rodando normalmente." TextAlignment="Center" />
                     <StackPanel Margin="0,16,0,0" HorizontalAlignment="Center" Orientation="Horizontal">
-                        <ui:Button Margin="0,0,8,0" Appearance="Primary" Command="{Binding StartEnvironmentCommand}" Content="Iniciar ambiente" Icon="{ui:SymbolIcon Play24}"
-                                   ToolTip="Docker e os projetos marcados, de uma vez" />
-                        <ui:Button Appearance="Secondary" Command="{Binding ToggleDockerCommand}" Content="Só ligar o Docker" />
+                        <Button Margin="0,0,8,0" Command="{Binding Env.StartCommand}" Content="Iniciar ambiente" Style="{StaticResource BtnPrimary}" ToolTip="Docker e os projetos marcados, de uma vez" />
+                        <Button Command="{Binding ToggleDockerCommand}" Content="Só ligar o Docker" Style="{StaticResource BtnSecondary}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
-
-            <ui:ProgressRing Margin="0,48,0,0" VerticalAlignment="Top" IsIndeterminate="{Binding State.HasCheckedOnce, Converter={StaticResource InverseBool}}" Visibility="{Binding State.HasCheckedOnce, Converter={StaticResource InverseBoolToVis}}" />
-            <ui:ProgressRing Margin="0,48,0,0" VerticalAlignment="Top" IsIndeterminate="{Binding IsLoading}" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}" />
-
-            <Border VerticalAlignment="Top" Style="{StaticResource EmptyState}" Visibility="{Binding ShowEmpty, Converter={StaticResource BoolToVis}}">
+            <ui:ProgressRing Grid.Column="0" Margin="0,48,0,0" VerticalAlignment="Top" IsIndeterminate="{Binding State.HasCheckedOnce, Converter={StaticResource InverseBool}}" Visibility="{Binding State.HasCheckedOnce, Converter={StaticResource InverseBoolToVis}}" />
+            <ui:ProgressRing Grid.Column="0" Margin="0,48,0,0" VerticalAlignment="Top" IsIndeterminate="{Binding IsLoading}" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}" />
+            <Border Grid.Column="0" VerticalAlignment="Top" Style="{StaticResource EmptyState}" Visibility="{Binding ShowEmpty, Converter={StaticResource BoolToVis}}">
                 <StackPanel HorizontalAlignment="Center">
-                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="40" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Symbol="Box24" />
+                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="36" Foreground="{StaticResource Wv.Text3}" Symbol="Box24" />
                     <TextBlock Margin="0,12,0,4" HorizontalAlignment="Center" Style="{StaticResource SectionTitle}" Text="{Binding EmptyTitle}" />
                     <TextBlock MaxWidth="440" HorizontalAlignment="Center" Style="{StaticResource Secondary}" Text="{Binding EmptyText}" TextAlignment="Center" />
-                    <ui:Button Margin="0,16,0,0" HorizontalAlignment="Center" Appearance="Secondary" Command="{Binding ClearFiltersCommand}" Content="Limpar filtros"
-                               Visibility="{Binding IsTotallyEmpty, Converter={StaticResource InverseBoolToVis}}" />
+                    <Button Margin="0,16,0,0" HorizontalAlignment="Center" Command="{Binding ClearFiltersCommand}" Content="Limpar filtros" Style="{StaticResource BtnSecondary}"
+                            Visibility="{Binding IsTotallyEmpty, Converter={StaticResource InverseBoolToVis}}" />
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource CardBorder}" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}" Visibility="{Binding ShowList, Converter={StaticResource BoolToVis}}">
-                <DockPanel>
-                    <!--  Cabeçalho das colunas  -->
-                    <Grid Height="36" DockPanel.Dock="Top" Style="{StaticResource Columns}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*" MinWidth="200" />
-                            <ColumnDefinition Width="{StaticResource ColStatus}" />
-                            <ColumnDefinition Width="{StaticResource ColPort}" />
-                            <ColumnDefinition Width="*" MinWidth="100" />
-                            <ColumnDefinition Width="{StaticResource ColCpu}" />
-                            <ColumnDefinition Width="{StaticResource ColMem}" />
-                            <ColumnDefinition Width="{StaticResource ColActions}" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Margin="8,0,0,0" Style="{StaticResource ColumnHeader}" Text="Projeto e serviço" />
-                        <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeader}" Text="Status" />
-                        <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeader}" Text="Porta" />
-                        <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeader}" Text="Ligado há" />
-                        <TextBlock Grid.Column="4" HorizontalAlignment="Right" Style="{StaticResource ColumnHeader}" Text="CPU" />
-                        <TextBlock Grid.Column="5" HorizontalAlignment="Right" Style="{StaticResource ColumnHeader}" Text="Memória" />
-                        <TextBlock Grid.Column="6" Margin="0,0,8,0" HorizontalAlignment="Right" Style="{StaticResource ColumnHeader}" Text="Ações" />
-                    </Grid>
-
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding Groups}" KeyboardNavigation.TabNavigation="Continue">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:ContainerGroupViewModel}">
-                                    <StackPanel>
-                                        <!--  Projeto numa linha só: nome, status, consumo e as ações do projeto inteiro.
-                                             Clique na linha para recolher/expandir.  -->
-                                        <Border
-                                            x:Name="GroupHeader"
-                                            Background="{DynamicResource SubtleFillColorTertiaryBrush}"
-                                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                                            BorderThickness="0,1,0,0"
-                                            Cursor="Hand">
-                                            <Border.InputBindings>
-                                                <MouseBinding Command="{Binding DataContext.ToggleGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" MouseAction="LeftClick" />
-                                            </Border.InputBindings>
-                                            <Grid MinHeight="48" Style="{StaticResource Columns}">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="2*" MinWidth="200" />
-                                                    <ColumnDefinition Width="{StaticResource ColStatus}" />
-                                                    <ColumnDefinition Width="{StaticResource ColPort}" />
-                                                    <ColumnDefinition Width="*" MinWidth="100" />
-                                                    <ColumnDefinition Width="{StaticResource ColCpu}" />
-                                                    <ColumnDefinition Width="{StaticResource ColMem}" />
-                                                    <ColumnDefinition Width="{StaticResource ColActions}" />
-                                                </Grid.ColumnDefinitions>
-                                                <DockPanel Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center">
-                                                    <ui:Button
-                                                        Width="28"
-                                                        Height="28"
-                                                        Padding="0"
-                                                        AutomationProperties.Name="Recolher ou expandir o projeto"
-                                                        Command="{Binding DataContext.ToggleGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        DockPanel.Dock="Left"
-                                                        Style="{StaticResource SubtleButton}">
-                                                        <ui:SymbolIcon x:Name="Chevron" FontSize="13" Symbol="ChevronDown24" />
-                                                    </ui:Button>
-                                                    <ui:SymbolIcon x:Name="GroupIcon" Margin="4,0,10,0" DockPanel.Dock="Left" FontSize="20" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Symbol="BoxMultiple24" />
-                                                    <StackPanel VerticalAlignment="Center">
-                                                        <TextBlock FontSize="14" FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock Style="{StaticResource Caption}" Text="{Binding WorkingDirLabel}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                                                                   ToolTip="{Binding WorkingDir}" Visibility="{Binding HasWorkingDir, Converter={StaticResource BoolToVis}}" />
-                                                    </StackPanel>
-                                                </DockPanel>
-                                                <Border Grid.Column="1" Style="{StaticResource StatusPill}">
+            <!--  Projetos  -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Visibility="{Binding ShowList, Converter={StaticResource BoolToVis}}">
+                <ItemsControl Margin="0,0,10,0" ItemsSource="{Binding Groups}" KeyboardNavigation.TabNavigation="Continue">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ContainerGroupViewModel}">
+                            <Border Margin="0,0,0,12" Style="{StaticResource CardBorder}" TextElement.Foreground="{StaticResource Wv.Text}">
+                                <StackPanel>
+                                    <!--  Cabeçalho do projeto  -->
+                                    <Grid Margin="8,12,14,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Width="32" Height="32" Margin="0,0,8,0" VerticalAlignment="Top"
+                                                AutomationProperties.Name="{Binding Title, StringFormat=Recolher ou expandir {0}}"
+                                                Command="{Binding DataContext.ToggleGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                Style="{StaticResource BtnIcon}">
+                                            <ui:SymbolIcon x:Name="Chevron" FontSize="13" Symbol="ChevronDown24" />
+                                        </Button>
+                                        <StackPanel Grid.Column="1" Margin="0,0,14,0" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                                <Border Style="{StaticResource GroupPill}">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <Ellipse Width="7" Height="7" Fill="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=Border}}" Style="{StaticResource Dot}" />
-                                                        <TextBlock Text="{Binding StatusLabel}" />
+                                                        <Ellipse Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=Border}}" />
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding StatusLabel}" />
                                                     </StackPanel>
                                                 </Border>
-                                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource Secondary}" Text="{Binding Summary}" />
-                                                <TextBlock Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding CpuText}" />
-                                                <TextBlock Grid.Column="5" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding MemText}" />
-
-                                                <!--  Ações do projeto: cores dizem o que cada uma faz; o nome aparece ao passar o mouse e no leitor de tela  -->
-                                                <StackPanel Grid.Column="6" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
-                                                    <ui:ProgressRing Width="18" Height="18" Margin="0,0,6,0" IsIndeterminate="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-                                                    <Button Width="32" Padding="0" Style="{StaticResource TintSuccess}"
-                                                            AutomationProperties.Name="{Binding Title, StringFormat=Iniciar todos os containers de {0}}" ToolTip="Iniciar todos (na ordem do depends_on)"
-                                                            Command="{Binding DataContext.StartGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                                            Visibility="{Binding AnyStopped, Converter={StaticResource BoolToVis}}">
-                                                        <ui:SymbolIcon FontSize="16" Filled="True" Symbol="Play24" />
-                                                    </Button>
-                                                    <Button Width="32" Padding="0" Style="{StaticResource TintAccent}"
-                                                            AutomationProperties.Name="{Binding Title, StringFormat=Reiniciar todos os containers de {0}}" ToolTip="Reiniciar todos"
-                                                            Command="{Binding DataContext.RestartGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                                            Visibility="{Binding AnyRunning, Converter={StaticResource BoolToVis}}">
-                                                        <ui:SymbolIcon FontSize="16" Symbol="ArrowClockwise24" />
-                                                    </Button>
-                                                    <Button Width="32" Padding="0" Style="{StaticResource TintCritical}"
-                                                            AutomationProperties.Name="{Binding Title, StringFormat=Parar todos os containers de {0}}" ToolTip="Parar todos"
-                                                            Command="{Binding DataContext.StopGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                                            Visibility="{Binding AnyRunning, Converter={StaticResource BoolToVis}}">
-                                                        <ui:SymbolIcon FontSize="16" Filled="True" Symbol="Stop24" />
-                                                    </Button>
-                                                    <Button Width="32" Padding="0" Style="{StaticResource TintNeutralSubtle}"
-                                                            AutomationProperties.Name="{Binding Title, StringFormat=Abrir o projeto {0} no VS Code}" ToolTip="Abrir no VS Code"
-                                                            Command="{Binding DataContext.OpenGroupInVsCodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                                            Visibility="{Binding HasWorkingDir, Converter={StaticResource BoolToVis}}">
-                                                        <ui:SymbolIcon FontSize="16" Symbol="Code24" />
-                                                    </Button>
-                                                    <Button Width="32" Padding="0" Style="{StaticResource TintNeutralSubtle}"
-                                                            AutomationProperties.Name="{Binding Title, StringFormat=Abrir terminal na pasta do projeto {0}}" ToolTip="Terminal na pasta do projeto"
-                                                            Command="{Binding DataContext.OpenGroupTerminalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                                            Visibility="{Binding HasWorkingDir, Converter={StaticResource BoolToVis}}">
-                                                        <ui:SymbolIcon FontSize="16" Symbol="WindowConsole20" />
-                                                    </Button>
-                                                    <ToggleButton x:Name="StartupToggle" Width="32" Padding="0" Style="{StaticResource TintNeutralSubtle}"
-                                                                  AutomationProperties.Name="Iniciar com o ambiente"
-                                                                  AutomationProperties.HelpText="Quando marcado, o botão Iniciar ambiente também sobe este projeto"
-                                                                  ToolTip="Iniciar com o ambiente: o botão “Iniciar ambiente” também sobe este projeto"
-                                                                  Command="{Binding DataContext.ToggleStartupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                                                  IsChecked="{Binding IsStartup, Mode=OneWay}"
-                                                                  Visibility="{Binding IsCompose, Converter={StaticResource BoolToVis}}">
-                                                        <ui:SymbolIcon x:Name="StartupIcon" FontSize="16" Symbol="Pin24" />
-                                                    </ToggleButton>
+                                            </StackPanel>
+                                            <TextBlock Margin="0,2,0,0" FontFamily="{StaticResource Wv.Mono}" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding WorkingDirLabel}"
+                                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding WorkingDir}" Visibility="{Binding HasWorkingDir, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Margin="0,0,14,0" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Wv.Text2}">
+                                            <Run FontWeight="SemiBold" Foreground="{StaticResource Wv.Text}" Text="{Binding CpuText, Mode=OneWay}" /><Run Text=" CPU   " /><Run FontWeight="SemiBold" Foreground="{StaticResource Wv.Text}" Text="{Binding MemText, Mode=OneWay}" /><Run Text=" RAM" />
+                                        </TextBlock>
+                                        <WrapPanel Grid.Column="3" VerticalAlignment="Center">
+                                            <ui:ProgressRing Width="16" Height="16" Margin="0,0,8,0" IsIndeterminate="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                                            <Button Height="32" Margin="0,0,4,0" Style="{StaticResource BtnGhost}"
+                                                    AutomationProperties.Name="{Binding Title, StringFormat=Abrir o projeto {0} no VS Code}" ToolTip="{Binding WorkingDir}"
+                                                    Command="{Binding DataContext.Inventory.OpenGroupInVsCodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                    Visibility="{Binding HasWorkingDir, Converter={StaticResource BoolToVis}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Margin="0,0,6,0" FontSize="14" Symbol="Code24" />
+                                                    <TextBlock VerticalAlignment="Center" Text="VS Code" />
                                                 </StackPanel>
-                                            </Grid>
-                                        </Border>
+                                            </Button>
+                                            <Button Height="32" Margin="0,0,8,0" Style="{StaticResource BtnGhost}"
+                                                    AutomationProperties.Name="{Binding Title, StringFormat=Abrir terminal na pasta do projeto {0}}" ToolTip="Terminal na pasta do projeto"
+                                                    Command="{Binding DataContext.OpenGroupTerminalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                    Visibility="{Binding HasWorkingDir, Converter={StaticResource BoolToVis}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Margin="0,0,6,0" FontSize="14" Symbol="WindowConsole20" />
+                                                    <TextBlock VerticalAlignment="Center" Text="Terminal" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Height="32" Margin="0,0,6,0" Content="Reiniciar" Style="{StaticResource BtnSecondary}"
+                                                    AutomationProperties.Name="{Binding Title, StringFormat=Reiniciar todos os containers de {0}}"
+                                                    Command="{Binding DataContext.Inventory.RestartGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                    Visibility="{Binding AnyRunning, Converter={StaticResource BoolToVis}}" />
+                                            <Button Height="32" Margin="0,0,6,0" Content="Parar tudo" Style="{StaticResource BtnSecondary}"
+                                                    AutomationProperties.Name="{Binding Title, StringFormat=Parar todos os containers de {0}}"
+                                                    Command="{Binding DataContext.Inventory.StopGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                    Visibility="{Binding AnyRunning, Converter={StaticResource BoolToVis}}" />
+                                            <Button Height="32" Margin="0,0,6,0" Style="{StaticResource BtnPrimary}"
+                                                    AutomationProperties.Name="{Binding Title, StringFormat=Iniciar o projeto {0}}" ToolTip="Sobe os containers na ordem do depends_on"
+                                                    Command="{Binding DataContext.Inventory.StartGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                    Visibility="{Binding AnyRunning, Converter={StaticResource InverseBoolToVis}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Margin="0,0,6,0" FontSize="12" Filled="True" Symbol="Play24" />
+                                                    <TextBlock VerticalAlignment="Center" Text="Iniciar projeto" />
+                                                </StackPanel>
+                                            </Button>
+                                            <StackPanel Margin="6,0,0,0" VerticalAlignment="Center" Orientation="Horizontal" Visibility="{Binding IsCompose, Converter={StaticResource BoolToVis}}">
+                                                <ui:ToggleSwitch AutomationProperties.Name="{Binding Title, StringFormat=Iniciar {0} com o ambiente}"
+                                                                 Command="{Binding DataContext.Inventory.ToggleStartupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                                 IsChecked="{Binding IsStartup, Mode=OneWay}" ToolTip="O botão Iniciar ambiente também sobe este projeto" />
+                                                <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Wv.Text2}" Text="Com o ambiente" />
+                                            </StackPanel>
+                                        </WrapPanel>
+                                    </Grid>
 
-                                        <!--  Containers do projeto  -->
-                                        <ItemsControl x:Name="Rows" ItemsSource="{Binding Items}">
+                                    <!--  Serviços  -->
+                                    <StackPanel x:Name="Rows">
+                                        <Grid Margin="48,0,14,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="{StaticResource ColStatus}" />
+                                                <ColumnDefinition Width="*" MinWidth="160" />
+                                                <ColumnDefinition Width="{StaticResource ColPort}" />
+                                                <ColumnDefinition Width="{StaticResource ColUptime}" />
+                                                <ColumnDefinition Width="{StaticResource ColCpu}" />
+                                                <ColumnDefinition Width="{StaticResource ColMem}" />
+                                                <ColumnDefinition Width="{StaticResource ColActions}" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Style="{StaticResource ColumnHeader}" Text="STATUS" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeader}" Text="SERVIÇO" />
+                                            <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeader}" Text="PORTA" />
+                                            <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeader}" Text="LIGADO HÁ" />
+                                            <TextBlock Grid.Column="4" Style="{StaticResource ColumnHeader}" Text="CPU" />
+                                            <TextBlock Grid.Column="5" Style="{StaticResource ColumnHeader}" Text="MEMÓRIA" />
+                                            <TextBlock Grid.Column="6" HorizontalAlignment="Right" Style="{StaticResource ColumnHeader}" Text="AÇÕES" />
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding Items}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="{x:Type vm:ContainerItemViewModel}">
                                                     <!--  Linha acessível: Tab chega até ela, Enter abre os logs, Delete exclui, Shift+F10 abre o menu  -->
@@ -277,7 +262,7 @@
                                                         AutomationProperties.HelpText="Enter abre os logs. Shift+F10 mostra as ações."
                                                         AutomationProperties.Name="{Binding AccessibleName}"
                                                         Background="Transparent"
-                                                        BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                        BorderBrush="{StaticResource Wv.Divider}"
                                                         BorderThickness="0,1,0,0"
                                                         Cursor="Hand"
                                                         Focusable="True"
@@ -304,165 +289,180 @@
                                                                 <MenuItem Command="{Binding PlacementTarget.Tag.StopCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" Header="Parar" Icon="{ui:SymbolIcon Stop24}"
                                                                           Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}" />
                                                                 <Separator />
-                                                                <MenuItem Command="{Binding PlacementTarget.Tag.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Header="Excluir…" Icon="{ui:SymbolIcon Delete24}" InputGestureText="Del" />
+                                                                <MenuItem Command="{Binding PlacementTarget.Tag.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" Foreground="{StaticResource Wv.Red}" Header="Excluir…" Icon="{ui:SymbolIcon Delete24}" InputGestureText="Del" />
                                                             </ContextMenu>
                                                         </Border.ContextMenu>
-                                                        <Grid MinHeight="44" Style="{StaticResource Columns}">
+                                                        <Grid MinHeight="48" Margin="48,0,14,0">
                                                             <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="2*" MinWidth="200" />
                                                                 <ColumnDefinition Width="{StaticResource ColStatus}" />
+                                                                <ColumnDefinition Width="*" MinWidth="160" />
                                                                 <ColumnDefinition Width="{StaticResource ColPort}" />
-                                                                <ColumnDefinition Width="*" MinWidth="100" />
+                                                                <ColumnDefinition Width="{StaticResource ColUptime}" />
                                                                 <ColumnDefinition Width="{StaticResource ColCpu}" />
                                                                 <ColumnDefinition Width="{StaticResource ColMem}" />
                                                                 <ColumnDefinition Width="{StaticResource ColActions}" />
                                                             </Grid.ColumnDefinitions>
-                                                            <!--  Recuo para ficar "dentro" do projeto; a imagem fica ao lado do nome, não embaixo  -->
-                                                            <DockPanel Grid.Column="0" Margin="42,0,12,0" VerticalAlignment="Center">
-                                                                <TextBlock DockPanel.Dock="Left" FontWeight="SemiBold" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
-                                                                <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Style="{StaticResource Caption}" Text="{Binding Image}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                                            </DockPanel>
-                                                            <Border Grid.Column="1" Style="{StaticResource StatusPill}">
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <Ellipse Width="7" Height="7" Fill="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=Border}}" Style="{StaticResource Dot}" />
-                                                                    <TextBlock Text="{Binding StatusLabel}" />
-                                                                </StackPanel>
-                                                            </Border>
+                                                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal">
+                                                                <Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center" Fill="{Binding Status, Converter={StaticResource ToneBrush}}" />
+                                                                <TextBlock FontSize="13" Foreground="{Binding Status, Converter={StaticResource ToneBrush}}" Text="{Binding StatusLabel}" />
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                                                <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding Image}" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
                                                             <Grid Grid.Column="2" VerticalAlignment="Center">
                                                                 <TextBlock Visibility="{Binding PortUrl, Converter={StaticResource NullToVis}}">
                                                                     <Hyperlink Command="{Binding DataContext.OpenPortCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                                                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" TextDecorations="None">
+                                                                               FontFamily="{StaticResource Wv.Mono}" FontSize="12" Foreground="{StaticResource Wv.AccentText}" TextDecorations="None">
                                                                         <Run Text="{Binding PortText, Mode=OneWay}" />
                                                                     </Hyperlink>
                                                                 </TextBlock>
-                                                                <TextBlock Foreground="{DynamicResource TextFillColorTertiaryBrush}" Text="{Binding PortText}" Visibility="{Binding PortUrl, Converter={StaticResource InverseNullToVis}}" />
+                                                                <TextBlock Foreground="{StaticResource Wv.TextFaint}" Text="{Binding PortText}" Visibility="{Binding PortUrl, Converter={StaticResource InverseNullToVis}}" />
                                                             </Grid>
-                                                            <TextBlock Grid.Column="3" Margin="0,0,8,0" VerticalAlignment="Center" Style="{StaticResource Secondary}" Text="{Binding Uptime}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                                            <TextBlock Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding CpuText}" />
-                                                            <TextBlock Grid.Column="5" HorizontalAlignment="Right" VerticalAlignment="Center" Text="{Binding MemText}" />
+                                                            <TextBlock Grid.Column="3" Margin="0,0,8,0" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Wv.Text2}" Text="{Binding Uptime}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Uptime}" />
+                                                            <StackPanel Grid.Column="4" VerticalAlignment="Center">
+                                                                <TextBlock FontSize="12" Text="{Binding CpuText}" />
+                                                                <ProgressBar Style="{StaticResource MiniBar}" Value="{Binding CpuShare, Mode=OneWay}" AutomationProperties.Name="CPU" />
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Column="5" VerticalAlignment="Center">
+                                                                <TextBlock FontSize="12" Text="{Binding MemText}" />
+                                                                <ProgressBar Style="{StaticResource MiniBar}" Value="{Binding MemShare, Mode=OneWay}" AutomationProperties.Name="Memória" />
+                                                            </StackPanel>
                                                             <StackPanel Grid.Column="6" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
-                                                                <ui:ProgressRing Width="18" Height="18" Margin="0,0,6,0" IsIndeterminate="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-                                                                <Button Width="32" Padding="0" AutomationProperties.Name="Iniciar" Style="{StaticResource TintSuccess}" ToolTip="Iniciar"
-                                                                        Command="{Binding DataContext.StartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                                                        Visibility="{Binding IsNotRunning, Converter={StaticResource BoolToVis}}">
-                                                                    <ui:SymbolIcon FontSize="16" Filled="True" Symbol="Play24" />
+                                                                <ui:ProgressRing Width="16" Height="16" Margin="0,0,6,0" IsIndeterminate="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                                                                <Button AutomationProperties.Name="Logs" Style="{StaticResource BtnIcon}" ToolTip="Logs (Enter)"
+                                                                        Command="{Binding DataContext.ShowLogsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                                                                    <ui:SymbolIcon FontSize="16" Symbol="TextAlignLeft24" />
                                                                 </Button>
-                                                                <Button Width="32" Padding="0" AutomationProperties.Name="Reiniciar" Style="{StaticResource TintAccent}" ToolTip="Reiniciar"
+                                                                <Button AutomationProperties.Name="Reiniciar" Style="{StaticResource BtnIcon}" ToolTip="Reiniciar"
                                                                         Command="{Binding DataContext.RestartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                                                         Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}">
                                                                     <ui:SymbolIcon FontSize="16" Symbol="ArrowClockwise24" />
                                                                 </Button>
-                                                                <Button Width="32" Padding="0" AutomationProperties.Name="Parar" Style="{StaticResource TintCritical}" ToolTip="Parar"
+                                                                <Button AutomationProperties.Name="Parar" Style="{StaticResource BtnIcon}" ToolTip="Parar"
                                                                         Command="{Binding DataContext.StopCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                                                         Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}">
-                                                                    <ui:SymbolIcon FontSize="16" Filled="True" Symbol="Stop24" />
+                                                                    <ui:SymbolIcon FontSize="14" Filled="True" Symbol="Stop24" />
                                                                 </Button>
-                                                                <Button Width="32" Padding="0" AutomationProperties.Name="Logs" Style="{StaticResource TintNeutralSubtle}" ToolTip="Logs"
-                                                                        Command="{Binding DataContext.ShowLogsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
-                                                                    <ui:SymbolIcon FontSize="16" Symbol="DocumentText24" />
-                                                                </Button>
-                                                                <Button Width="32" Padding="0" AutomationProperties.Name="Excluir" Style="{StaticResource TintCriticalSubtle}" ToolTip="Excluir"
-                                                                        Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
-                                                                    <ui:SymbolIcon FontSize="16" Symbol="Delete24" />
+                                                                <Button AutomationProperties.Name="Iniciar" Foreground="{StaticResource Wv.Green}" Style="{StaticResource BtnIcon}" ToolTip="Iniciar"
+                                                                        Command="{Binding DataContext.StartCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                                        Visibility="{Binding IsNotRunning, Converter={StaticResource BoolToVis}}">
+                                                                    <ui:SymbolIcon FontSize="14" Filled="True" Symbol="Play24" />
                                                                 </Button>
                                                             </StackPanel>
                                                         </Grid>
                                                     </Border>
                                                     <DataTemplate.Triggers>
                                                         <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                                            <Setter TargetName="Row" Property="Background" Value="{StaticResource Wv.Hover}" />
                                                         </Trigger>
                                                         <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                                            <Setter TargetName="Row" Property="Background" Value="{StaticResource Wv.Selected}" />
                                                         </DataTrigger>
                                                     </DataTemplate.Triggers>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                     </StackPanel>
-                                    <DataTemplate.Triggers>
-                                        <DataTrigger Binding="{Binding IsExpanded}" Value="False">
-                                            <Setter TargetName="Rows" Property="Visibility" Value="Collapsed" />
-                                            <Setter TargetName="Chevron" Property="Symbol" Value="ChevronRight24" />
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsCompose}" Value="False">
-                                            <Setter TargetName="GroupIcon" Property="Symbol" Value="Box24" />
-                                            <Setter TargetName="GroupIcon" Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        </DataTrigger>
-                                        <!--  Projeto marcado para subir com o ambiente: alfinete cheio, na cor de destaque  -->
-                                        <DataTrigger Binding="{Binding IsStartup}" Value="True">
-                                            <Setter TargetName="StartupIcon" Property="Filled" Value="True" />
-                                            <Setter TargetName="StartupToggle" Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                                        </DataTrigger>
-                                    </DataTemplate.Triggers>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </DockPanel>
-            </Border>
-        </Grid>
-
-        <!--  Logs do container selecionado  -->
-        <Border
-            Grid.Row="3"
-            Height="280"
-            Margin="0,16,0,0"
-            Style="{StaticResource CardBorder}"
-            TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-            Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
-            <DockPanel>
-                <DockPanel Margin="16,8,8,8" DockPanel.Dock="Top" LastChildFill="False">
-                    <TextBlock VerticalAlignment="Center" DockPanel.Dock="Left" Style="{StaticResource SectionTitle}">
-                        <Run Text="Logs · " /><Run Text="{Binding Selected.DisplayName, Mode=OneWay}" />
-                    </TextBlock>
-                    <Border Margin="12,0,0,0" Background="{DynamicResource SubtleFillColorSecondaryBrush}" DockPanel.Dock="Left" Style="{StaticResource Pill}">
-                        <TextBlock FontSize="12" Text="{Binding LiveLabel}" />
-                    </Border>
-                    <ui:Button AutomationProperties.Name="Fechar logs" Command="{Binding CloseLogsCommand}" DockPanel.Dock="Right" Icon="{ui:SymbolIcon Dismiss24}" Style="{StaticResource IconButton}" />
-                    <ui:Button Margin="8,0,4,0" Appearance="Secondary" Command="{Binding CopyLogsCommand}" Content="Copiar" DockPanel.Dock="Right" Icon="{ui:SymbolIcon Copy24}" />
-                    <ui:Button Margin="8,0,0,0" Appearance="Secondary" Command="{Binding ToggleLogPauseCommand}" Content="{Binding PauseLabel}" DockPanel.Dock="Right" Icon="{ui:SymbolIcon Pause24}" />
-                    <ui:TextBox Width="240" AutomationProperties.Name="Buscar nos logs" ClearButtonEnabled="True" DockPanel.Dock="Right" Icon="{ui:SymbolIcon Search24}"
-                                PlaceholderText="Buscar nos logs" Text="{Binding LogSearch, UpdateSourceTrigger=PropertyChanged}" />
-                </DockPanel>
-                <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" DockPanel.Dock="Top" />
-                <ListBox
-                    x:Name="LogList"
-                    Padding="0,6"
-                    AutomationProperties.Name="Linhas de log"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    ItemsSource="{Binding LogsView}"
-                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                    VirtualizingPanel.IsVirtualizing="True"
-                    VirtualizingPanel.VirtualizationMode="Recycling">
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="Padding" Value="16,1" />
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListBoxItem">
-                                        <ContentPresenter Margin="{TemplateBinding Padding}" />
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:LogLineViewModel}">
-                            <DockPanel>
-                                <TextBlock Width="70" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Style="{StaticResource Mono}" Text="{Binding Time}" />
-                                <TextBlock x:Name="Line" Style="{StaticResource Mono}" Text="{Binding Text}" TextWrapping="Wrap" />
-                            </DockPanel>
+                                </StackPanel>
+                            </Border>
                             <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding IsError}" Value="True">
-                                    <Setter TargetName="Line" Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                <DataTrigger Binding="{Binding IsExpanded}" Value="False">
+                                    <Setter TargetName="Rows" Property="Visibility" Value="Collapsed" />
+                                    <Setter TargetName="Chevron" Property="Symbol" Value="ChevronRight24" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </DockPanel>
-        </Border>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!--  Logs: painel lateral, a lista continua visível  -->
+            <Border
+                Grid.Column="1"
+                Width="440"
+                Margin="16,0,0,0"
+                Style="{StaticResource CardBorder}"
+                TextElement.Foreground="{StaticResource Wv.Text}"
+                Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <DockPanel Margin="16,12,8,12" DockPanel.Dock="Top">
+                        <Button AutomationProperties.Name="Fechar logs" Command="{Binding CloseLogsCommand}" DockPanel.Dock="Right" Style="{StaticResource BtnIcon}" Width="36" Height="36">
+                            <ui:SymbolIcon FontSize="13" Symbol="Dismiss24" />
+                        </Button>
+                        <Border Height="22" Margin="10,0,6,0" Padding="9,0" VerticalAlignment="Center" CornerRadius="11" DockPanel.Dock="Right">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource Wv.GraySoft}" />
+                                    <Setter Property="TextElement.Foreground" Value="{StaticResource Wv.Text2}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLive}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource Wv.GreenSoft}" />
+                                            <Setter Property="TextElement.Foreground" Value="{StaticResource Wv.Green}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <Ellipse Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=Border}}" />
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding LiveLabel}" />
+                            </StackPanel>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Selected.DisplayName}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock FontSize="12" Foreground="{StaticResource Wv.Text3}">
+                                <Run Text="{Binding Selected.ComposeProject, Mode=OneWay}" /><Run Text=" · logs" />
+                            </TextBlock>
+                        </StackPanel>
+                    </DockPanel>
+                    <Border BorderBrush="{StaticResource Wv.Border}" BorderThickness="0,1,0,0" DockPanel.Dock="Top" />
+                    <DockPanel Margin="12,10" DockPanel.Dock="Top">
+                        <Button Height="32" Margin="6,0,0,0" Command="{Binding CopyLogsCommand}" Content="Copiar" DockPanel.Dock="Right" Style="{StaticResource BtnSecondary}" />
+                        <Button Height="32" Margin="6,0,0,0" Command="{Binding ToggleLogPauseCommand}" Content="{Binding PauseLabel}" DockPanel.Dock="Right" Style="{StaticResource BtnSecondary}" />
+                        <ui:TextBox Height="32" Padding="8,5" AutomationProperties.Name="Filtrar linhas do log" ClearButtonEnabled="True" FontSize="13" Icon="{ui:SymbolIcon Search24}"
+                                    PlaceholderText="Filtrar linhas" Text="{Binding LogSearch, UpdateSourceTrigger=PropertyChanged}" />
+                    </DockPanel>
+                    <Border BorderBrush="{StaticResource Wv.Border}" BorderThickness="0,1,0,0" DockPanel.Dock="Top" />
+                    <TextBlock Margin="14,8" DockPanel.Dock="Bottom" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="Últimas 500 linhas · rola sozinho enquanto você estiver no fim" />
+                    <Border BorderBrush="{StaticResource Wv.Border}" BorderThickness="0,1,0,0" DockPanel.Dock="Bottom" />
+                    <ListBox
+                        x:Name="LogList"
+                        Padding="0,8"
+                        AutomationProperties.Name="Linhas de log"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        ItemsSource="{Binding LogsView}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="14,1" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <ContentPresenter Margin="{TemplateBinding Padding}" />
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:LogLineViewModel}">
+                                <DockPanel>
+                                    <TextBlock Width="64" FontFamily="{StaticResource Wv.Mono}" FontSize="12" Foreground="{StaticResource Wv.TextFaint}" Text="{Binding Time}" />
+                                    <TextBlock x:Name="Line" FontFamily="{StaticResource Wv.Mono}" FontSize="12" Foreground="{StaticResource Wv.TextSoft}" Text="{Binding Text}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                        <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Wv.Red}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

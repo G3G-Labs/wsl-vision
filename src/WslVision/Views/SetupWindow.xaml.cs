@@ -10,7 +10,6 @@ public partial class SetupWindow : FluentWindow
     {
         DataContext = vm;
         InitializeComponent();
-        SystemThemeWatcher.Watch(this, WindowBackdropType.Mica, updateAccents: true);
         Loaded += async (_, _) => await vm.LoadAsync();
     }
 

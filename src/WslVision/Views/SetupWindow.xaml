@@ -7,13 +7,15 @@
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:vm="clr-namespace:WslVision.ViewModels"
     Title="WSL Vision · Configuração inicial"
+    Icon="pack://application:,,,/Assets/app.ico"
     Width="1040"
     Height="720"
     MinWidth="820"
     MinHeight="600"
     d:DataContext="{d:DesignInstance Type=vm:SetupViewModel}"
     ExtendsContentIntoTitleBar="True"
-    WindowBackdropType="Mica"
+    Background="{StaticResource Wv.Bg}"
+    WindowBackdropType="None"
     WindowStartupLocation="CenterScreen"
     mc:Ignorable="d">
 
@@ -43,7 +45,7 @@
 
         <ui:TitleBar Title="WSL Vision · Configuração inicial" ShowMaximize="False">
             <ui:TitleBar.Icon>
-                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" />
+                <ui:ImageIcon Source="pack://application:,,,/Assets/logo.png" />
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
@@ -59,13 +61,14 @@
                 <ItemsControl ItemsSource="{Binding Steps}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:SetupStep}">
-                            <ui:Button
+                            <Button
                                 MinHeight="52"
                                 Margin="0,0,0,4"
                                 Padding="12,6"
                                 HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Left"
-                                Style="{StaticResource SubtleButton}"
+                                Height="Auto"
+                                Style="{StaticResource BtnGhost}"
                                 Command="{Binding DataContext.GoToStepCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}"
                                 IsEnabled="{Binding IsReachable}">
@@ -80,7 +83,7 @@
                                         <TextBlock Style="{StaticResource Caption}" Text="{Binding Subtitle}" />
                                     </StackPanel>
                                 </StackPanel>
-                            </ui:Button>
+                            </Button>
                             <DataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding IsDone}" Value="True">
                                     <Setter TargetName="Circle" Property="Fill" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}" />
@@ -109,9 +112,9 @@
                     <Border Padding="32,16" Background="{DynamicResource SubtleFillColorTertiaryBrush}" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"
                             CornerRadius="0,0,8,8" DockPanel.Dock="Bottom">
                         <DockPanel LastChildFill="False">
-                            <ui:Button Appearance="Secondary" Command="{Binding BackCommand}" Content="Voltar" DockPanel.Dock="Left" Visibility="{Binding CanGoBack, Converter={StaticResource BoolToVis}}" />
-                            <ui:Button Appearance="Primary" Command="{Binding FinishCommand}" Content="Abrir o painel" DockPanel.Dock="Right" Visibility="{Binding IsLastStep, Converter={StaticResource BoolToVis}}" />
-                            <ui:Button Appearance="Primary" Command="{Binding NextCommand}" Content="Continuar" DockPanel.Dock="Right" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
+                            <Button Style="{StaticResource BtnSecondary}" Command="{Binding BackCommand}" Content="Voltar" DockPanel.Dock="Left" Visibility="{Binding CanGoBack, Converter={StaticResource BoolToVis}}" />
+                            <Button Style="{StaticResource BtnPrimary}" Command="{Binding FinishCommand}" Content="Abrir o painel" DockPanel.Dock="Right" Visibility="{Binding IsLastStep, Converter={StaticResource BoolToVis}}" />
+                            <Button Style="{StaticResource BtnPrimary}" Command="{Binding NextCommand}" Content="Continuar" DockPanel.Dock="Right" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
                                        Visibility="{Binding IsNotLastStep, Converter={StaticResource BoolToVis}}" />
                             <StackPanel Margin="0,0,16,0" VerticalAlignment="Center" DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
                                 <ui:ProgressRing Width="18" Height="18" Margin="0,0,8,0" IsIndeterminate="{Binding IsBusy}" />
@@ -164,7 +167,7 @@
                                                 <ui:SymbolIcon Style="{StaticResource OkIcon}" Visibility="{Binding Status.DockerInstalled, Converter={StaticResource BoolToVis}}" />
                                                 <ui:SymbolIcon Style="{StaticResource MissingIcon}" Visibility="{Binding Status.DockerInstalled, Converter={StaticResource InverseBoolToVis}}" />
                                             </Grid>
-                                            <ui:Button Appearance="Primary" Command="{Binding InstallDockerCommand}" Content="Instalar Docker Engine" DockPanel.Dock="Right"
+                                            <Button Style="{StaticResource BtnPrimary}" Command="{Binding InstallDockerCommand}" Content="Instalar Docker Engine" DockPanel.Dock="Right"
                                                        Visibility="{Binding Status.DockerInstalled, Converter={StaticResource InverseBoolToVis}}" />
                                             <StackPanel>
                                                 <TextBlock FontWeight="SemiBold" Text="Docker Engine instalado" />
@@ -177,7 +180,7 @@
                                                 <ui:SymbolIcon Style="{StaticResource OkIcon}" Visibility="{Binding Status.SystemdActive, Converter={StaticResource BoolToVis}}" />
                                                 <ui:SymbolIcon Style="{StaticResource MissingIcon}" Visibility="{Binding Status.SystemdActive, Converter={StaticResource InverseBoolToVis}}" />
                                             </Grid>
-                                            <ui:Button Appearance="Secondary" Command="{Binding EnableSystemdCommand}" Content="Ativar systemd" DockPanel.Dock="Right"
+                                            <Button Style="{StaticResource BtnSecondary}" Command="{Binding EnableSystemdCommand}" Content="Ativar systemd" DockPanel.Dock="Right"
                                                        Visibility="{Binding Status.SystemdActive, Converter={StaticResource InverseBoolToVis}}" />
                                             <StackPanel>
                                                 <TextBlock FontWeight="SemiBold" Text="systemd ativado" />
@@ -194,7 +197,12 @@
                                         </DockPanel>
                                     </StackPanel>
                                 </Border>
-                                <ui:Button Margin="0,12,0,0" Style="{StaticResource SubtleButton}" Command="{Binding DetectCommand}" Content="Verificar de novo" Icon="{ui:SymbolIcon ArrowSync24}" />
+                                <Button Margin="0,12,0,0" HorizontalAlignment="Left" Command="{Binding DetectCommand}" Style="{StaticResource BtnGhost}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Margin="0,0,7,0" FontSize="14" Symbol="ArrowSync24" />
+                                        <TextBlock VerticalAlignment="Center" Text="Verificar de novo" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
 
                             <!--  2: Permissões  -->
@@ -213,7 +221,7 @@
                                         <Border Margin="0,10" Padding="12,8" Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="6">
                                             <TextBlock Style="{StaticResource Mono}" Text="{Binding GroupCommand}" />
                                         </Border>
-                                        <ui:Button HorizontalAlignment="Left" Appearance="Primary" Command="{Binding AddToGroupCommand}" Content="Permitir e adicionar ao grupo" />
+                                        <Button HorizontalAlignment="Left" Style="{StaticResource BtnPrimary}" Command="{Binding AddToGroupCommand}" Content="Permitir e adicionar ao grupo" />
                                     </StackPanel>
                                 </Border>
                                 <ui:InfoBar IsClosable="False" IsOpen="{Binding Status.UserInDockerGroup, FallbackValue=False}" Severity="Success" Title="Pronto."

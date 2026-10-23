@@ -24,7 +24,7 @@ public sealed partial class FileItemViewModel(LinuxFileEntry entry) : Observable
 
 public sealed record Crumb(string Name, string Path);
 
-public sealed record Place(string Label, string Path, bool IsFavorite);
+public sealed record Place(string Label, string Path, bool IsFavorite, bool IsLocked = false);
 
 public sealed partial class FilesViewModel : PageViewModel
 {
@@ -66,6 +66,13 @@ public sealed partial class FilesViewModel : PageViewModel
 
     public override SymbolRegular Icon => SymbolRegular.Folder24;
 
+    public override IEnumerable<PaletteItem> PaletteItems() => Favorites.Select(f =>
+        new PaletteItem(PaletteSection.Folders, f.Path, "Favorito", SymbolRegular.Folder24, async () =>
+        {
+            RequestShow();
+            await NavigateAsync(f.Path);
+        }));
+
     public AppState State => _state;
 
     public ObservableCollection<FileItemViewModel> Items { get; } = [];
@@ -81,7 +88,24 @@ public sealed partial class FilesViewModel : PageViewModel
     private string _currentPath;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CodeLabel), nameof(CountLabel))]
     private FileItemViewModel? _selected;
+
+    /// <summary>Formato do caminho mostrado e copiado na barra: Linux (/home/...) ou Windows (\\wsl.localhost\...).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLinuxPath))]
+    private bool _isWindowsPath;
+
+    public bool IsLinuxPath
+    {
+        get => !IsWindowsPath;
+        set => IsWindowsPath = !value;
+    }
+
+    /// <summary>A ação principal segue a seleção: pasta selecionada, senão a pasta aberta.</summary>
+    public string CodeLabel => Selected is { IsDirectory: true } s ? $"Abrir {s.Name} no VS Code" : "Abrir no VS Code";
+
+    public string CountLabel => Selected is { } s ? $"{StatusText} · {s.Name} selecionado" : StatusText;
 
     [ObservableProperty]
     private bool _isProtected;
@@ -104,6 +128,7 @@ public sealed partial class FilesViewModel : PageViewModel
     public SymbolRegular HiddenToggleIcon => ShowHidden ? SymbolRegular.EyeOff24 : SymbolRegular.Eye24;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CountLabel))]
     private string _statusText = "";
 
     private static readonly HashSet<string> RunnableExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -141,8 +166,8 @@ public sealed partial class FilesViewModel : PageViewModel
         Places.Clear();
         if (_settings.Current.LinuxHome is { } home)
             Places.Add(new Place("Pasta pessoal", home, false));
-        Places.Add(new Place("Raiz /", "/", false));
-        Places.Add(new Place("/etc", "/etc", false));
+        Places.Add(new Place("Raiz /", "/", false, IsLocked: true));
+        Places.Add(new Place("/etc", "/etc", false, IsLocked: true));
         Places.Add(new Place("Windows (C:)", "/mnt/c", false));
         OnPropertyChanged(nameof(IsFavorite));
     }
@@ -172,7 +197,7 @@ public sealed partial class FilesViewModel : PageViewModel
             Items.Clear();
             PermissionDenied = true;
             HasListing = true;
-            StatusText = WindowsPath;
+            StatusText = "Sem permissão";
         }
         catch (Exception ex) when (generation == _loadGeneration)
         {
@@ -202,7 +227,7 @@ public sealed partial class FilesViewModel : PageViewModel
             if (ShowHidden || !e.Name.StartsWith('.'))
                 Items.Add(new FileItemViewModel(e));
         IsTruncated = listing.Truncated;
-        StatusText = $"{Items.Count}{(IsTruncated ? "+" : "")} itens · {WindowsPath}";
+        StatusText = $"{Items.Count}{(IsTruncated ? "+" : "")} {(Items.Count == 1 ? "item" : "itens")}";
     }
 
     private void BuildBreadcrumbs()
@@ -322,6 +347,16 @@ public sealed partial class FilesViewModel : PageViewModel
     {
         var p = item?.FullPath ?? CurrentPath;
         Try(() => LauncherService.CopyText(p), $"Copiado: {p}");
+    }
+
+    /// <summary>Copia a pasta aberta no formato escolhido na barra de caminho.</summary>
+    [RelayCommand]
+    private void CopyCurrentPath()
+    {
+        if (IsWindowsPath)
+            CopyWindowsPath(null);
+        else
+            CopyLinuxPath(null);
     }
 
     [RelayCommand]

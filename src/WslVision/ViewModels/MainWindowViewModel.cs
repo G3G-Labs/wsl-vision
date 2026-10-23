@@ -26,12 +26,37 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Terminal = terminal;
         Maintenance = maintenance;
         Settings = settings;
-        Pages = [containers, files, monitor, terminal, maintenance];
-        _current = containers;
-        containers.IsCurrent = true;
-        // Terminal aberto por outra aba (pasta de um projeto, menu de arquivos): mostra a aba Terminal.
-        terminal.ShowRequested += (_, _) => Current = terminal;
+        // A Visão geral (o antigo Monitor, com o estado do ambiente) é a tela inicial.
+        Pages = [monitor, containers, files, terminal, maintenance];
+        _current = monitor;
+        monitor.IsCurrent = true;
+        // Uma aba pede para aparecer (terminal aberto de outra aba, logs escolhidos na paleta…).
+        foreach (var page in Pages.Append(settings))
+            page.ShowRequested += (s, _) => Current = (PageViewModel)s!;
+        Palette = new PaletteViewModel(BuildPalette);
     }
+
+    /// <summary>Paleta de comandos (Ctrl+K).</summary>
+    public PaletteViewModel Palette { get; }
+
+    /// <summary>O que cada aba oferece, e por último a navegação com os atalhos de teclado.</summary>
+    private IEnumerable<PaletteItem> BuildPalette()
+    {
+        foreach (var item in Pages.SelectMany(p => p.PaletteItems()))
+            yield return item;
+        var n = 1;
+        foreach (var page in Pages)
+            yield return GoTo(page, $"Ctrl {n++}");
+        yield return GoTo(Settings, "Ctrl ,");
+    }
+
+    private PaletteItem GoTo(PageViewModel page, string keys) =>
+        new(PaletteSection.GoTo, page.Title, null, page.Icon, () =>
+        {
+            Current = page;
+            return Task.CompletedTask;
+        })
+        { Keys = keys };
 
     public AppState State { get; }
     public Notifier Notifier { get; }

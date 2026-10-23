@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using WslVision.Models;
 
 namespace WslVision.Services.Docker;
 
@@ -47,6 +48,39 @@ public static partial class DockerText
         _ => "Parado",
     };
 
+    public static Tone ToneOf(ContainerStatusKind k) => k switch
+    {
+        ContainerStatusKind.Running => Tone.Ok,
+        ContainerStatusKind.Error => Tone.Error,
+        ContainerStatusKind.Paused or ContainerStatusKind.Restarting or ContainerStatusKind.Partial => Tone.Work,
+        _ => Tone.Off,
+    };
+
+    /// <summary>
+    /// Um evento do Docker numa frase para a Atividade ("db iniciado · obraclick"). Null para os que só fazem barulho
+    /// (kill, update, saída normal com 0, 137 ou 143).
+    /// </summary>
+    public static (string Text, Tone Tone)? Describe(ContainerEvent e)
+    {
+        var who = string.IsNullOrEmpty(e.Service) ? e.Name : e.Service;
+        (string Text, Tone Tone)? d = e.Action switch
+        {
+            "start" => ($"{who} iniciado", Tone.Ok),
+            "restart" => ($"{who} reiniciado", Tone.Ok),
+            "stop" => ($"{who} parado", Tone.Off),
+            "die" when e.ExitCode is not (null or "0" or "143" or "137") => ($"{who} saiu com erro (código {e.ExitCode})", Tone.Error),
+            "oom" => ($"{who} ficou sem memória", Tone.Error),
+            "destroy" => ($"{who} removido", Tone.Off),
+            "create" => ($"{who} criado", Tone.Off),
+            "pause" => ($"{who} pausado", Tone.Work),
+            "unpause" => ($"{who} retomado", Tone.Ok),
+            var a when a.EndsWith(": healthy", StringComparison.Ordinal) => ($"{who} ficou saudável", Tone.Ok),
+            var a when a.EndsWith(": unhealthy", StringComparison.Ordinal) => ($"{who} com problema no healthcheck", Tone.Work),
+            _ => null,
+        };
+        return d is { } x && e.Project is { } p && !string.IsNullOrEmpty(e.Service) ? ($"{x.Text} · {p}", x.Tone) : d;
+    }
+
     /// <summary>"Up 2 hours (healthy)" → "2 horas"; "Exited (1) 12 minutes ago" → "Saiu há 12 minutos (código 1)".</summary>
     public static string Uptime(string state, string status)
     {
@@ -94,8 +128,8 @@ public static partial class DockerText
         switch (en)
         {
             case "Less than a second": return "menos de 1 segundo";
-            case "About a minute": return "cerca de 1 minuto";
-            case "About an hour": return "cerca de 1 hora";
+            case "About a minute": return "1 minuto";
+            case "About an hour": return "1 hora";
         }
         var m = Amount().Match(en);
         if (!m.Success)

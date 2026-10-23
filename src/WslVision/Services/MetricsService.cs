@@ -153,7 +153,7 @@ public sealed class MetricsService(WslService wsl)
                     case "@@END" when memTotal > 0:
                         foreach (var gone in prevContainer.Keys.Where(k => !containers.ContainsKey(k)).ToList())
                             prevContainer.Remove(gone);
-                        var sample = new LiveSample(new WslMetricsSample(memTotal, memAvail, cpu, diskUsed, diskSize), containers);
+                        var sample = new LiveSample(new WslMetricsSample(memTotal, memAvail, cpu, diskUsed, diskSize, uptime), containers);
                         await dispatcher.InvokeAsync(() =>
                         {
                             if (ReferenceEquals(_process, p))

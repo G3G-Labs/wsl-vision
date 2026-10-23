@@ -44,8 +44,27 @@ public sealed class DockerManager(WslService wsl, SettingsService settings) : ID
         }
     }
 
-    // Com systemd, liga e para também o docker.socket; senão a próxima chamada à API religaria o serviço.
-    public Task StartServiceAsync(string distro) => RunServiceScript(distro, "start", "docker.socket docker.service", "ligar");
+    private const int ReadySeconds = 30;
+
+    // Espera o Docker responder dentro da distro, num processo só. Pingar pela API em laço abriria dois wsl.exe por
+    // tentativa (a conferência da distro e o dial-stdio), e sem systemd o "service docker start" volta antes de o
+    // dockerd aceitar conexões. Roda como root para medir só o Docker, e não a permissão do usuário.
+    private const string WaitReadyScript = """
+        i=0
+        while ! docker version >/dev/null 2>&1; do
+          i=$((i + 1))
+          [ "$i" -ge "$A1" ] && exit 1
+          sleep 1
+        done
+        """;
+
+    /// <summary>Liga o Docker e só volta quando ele responde.</summary>
+    /// <remarks>Com systemd, liga e para também o docker.socket; senão a próxima chamada à API religaria o serviço.</remarks>
+    public async Task StartServiceAsync(string distro)
+    {
+        await RunServiceScript(distro, "start", "docker.socket docker.service", "ligar");
+        await WaitUntilReadyAsync(distro);
+    }
 
     public async Task StopServiceAsync(string distro)
     {
@@ -53,10 +72,20 @@ public sealed class DockerManager(WslService wsl, SettingsService settings) : ID
         await RunServiceScript(distro, "stop", "docker.socket docker.service", "desligar");
     }
 
+    /// <summary>Reinicia o Docker e só volta quando ele responde.</summary>
     public async Task RestartServiceAsync(string distro)
     {
         Reset();
         await RunServiceScript(distro, "restart", "docker.service", "reiniciar");
+        await WaitUntilReadyAsync(distro);
+    }
+
+    private async Task WaitUntilReadyAsync(string distro)
+    {
+        var r = await wsl.RunScriptAsync(distro, WaitReadyScript, [ReadySeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)],
+            asRoot: true, timeout: TimeSpan.FromSeconds(ReadySeconds + 15));
+        if (!r.Success)
+            throw new TimeoutException($"O serviço do Docker foi ligado, mas não respondeu em {ReadySeconds} segundos.");
     }
 
     /// <summary>systemctl quando a distro usa systemd; senão, o "service" do SysV.</summary>

@@ -98,3 +98,6 @@ public sealed class DfBuildCache
 public sealed record ContainerUsage(double CpuPercent, long MemoryBytes);
 
 public sealed record DockerLogLine(DateTimeOffset? Time, string Text, bool IsStdErr);
+
+/// <summary>Um evento de container vindo do fluxo /events do Docker.</summary>
+public sealed record ContainerEvent(string Action, string Name, string? Service, string? Project, string? ExitCode, DateTimeOffset Time);

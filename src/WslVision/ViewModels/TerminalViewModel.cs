@@ -80,9 +80,6 @@ public sealed partial class TerminalViewModel : PageViewModel
 
     public bool HasCurrentSession => CurrentSession is not null;
 
-    /// <summary>Alguém fora da aba (ex.: Containers) abriu um terminal: a janela deve mostrar esta aba.</summary>
-    public event EventHandler? ShowRequested;
-
     [ObservableProperty]
     private string _folder;
 
@@ -228,7 +225,7 @@ public sealed partial class TerminalViewModel : PageViewModel
     public async Task OpenSessionAsync(string linuxPath, string? command = null, string? title = null)
     {
         await OpenEmbedded(linuxPath, asRoot: false, command, title);
-        ShowRequested?.Invoke(this, EventArgs.Empty);
+        RequestShow();
     }
 
     private async Task OpenEmbedded(string folder, bool asRoot, string? command, string? title = null)

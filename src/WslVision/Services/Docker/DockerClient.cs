@@ -56,7 +56,9 @@ public sealed class DockerClient : IDisposable
             },
             PooledConnectionIdleTimeout = TimeSpan.FromSeconds(20),
             PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-            MaxConnectionsPerServer = 8,
+            // Cada conexão é um wsl.exe com seus canais na VM, e com a memória da distro apertada abrir canais novos falha.
+            // Bastam 4: o fluxo de eventos, os logs abertos e duas requisições; as demais esperam na fila.
+            MaxConnectionsPerServer = 4,
             UseProxy = false,
         };
         return new DockerClient(handler, new Uri("http://docker/"));
@@ -134,7 +136,7 @@ public sealed class DockerClient : IDisposable
     /// Eventos de containers (start, die, destroy…) em tempo real, numa única conexão aberta.
     /// Substitui consultar a lista a cada poucos segundos.
     /// </summary>
-    public async IAsyncEnumerable<string> StreamContainerEventsAsync([EnumeratorCancellation] CancellationToken ct = default)
+    public async IAsyncEnumerable<ContainerEvent> StreamContainerEventsAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
         // Só eventos que mudam o estado. Healthchecks geram "exec_*" a cada poucos segundos e ficam de fora.
         var filters = Uri.EscapeDataString(
@@ -148,18 +150,29 @@ public sealed class DockerClient : IDisposable
         {
             if (line.Length == 0)
                 continue;
-            string? action = null;
+            ContainerEvent? ev = null;
             try
             {
                 using var doc = JsonDocument.Parse(line);
-                action = doc.RootElement.TryGetProperty("Action", out var a) ? a.GetString() : null;
+                var root = doc.RootElement;
+                if (root.TryGetProperty("Action", out var a) && a.GetString() is { } action)
+                {
+                    string? Attr(string key) =>
+                        root.TryGetProperty("Actor", out var actor) && actor.TryGetProperty("Attributes", out var attrs)
+                        && attrs.TryGetProperty(key, out var v) ? v.GetString() : null;
+                    var time = root.TryGetProperty("time", out var t) && t.TryGetInt64(out var secs)
+                        ? DateTimeOffset.FromUnixTimeSeconds(secs).ToLocalTime()
+                        : DateTimeOffset.Now;
+                    ev = new ContainerEvent(action, Attr("name") ?? "", Attr("com.docker.compose.service"),
+                        Attr("com.docker.compose.project"), Attr("exitCode"), time);
+                }
             }
             catch (JsonException)
             {
                 // Linha incompleta: ignora.
             }
-            if (action is not null)
-                yield return action;
+            if (ev is not null)
+                yield return ev;
         }
     }
 

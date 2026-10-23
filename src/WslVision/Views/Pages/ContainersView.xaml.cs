@@ -56,7 +56,7 @@ public partial class ContainersView : UserControl
         }
         else if (e.Key == System.Windows.Input.Key.F5 && _vm is not null)
         {
-            _vm.RefreshCommand.Execute(null);
+            _vm.Inventory.RefreshCommand.Execute(null);
             e.Handled = true;
         }
     }

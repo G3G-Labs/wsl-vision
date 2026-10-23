@@ -43,4 +43,12 @@ public abstract partial class PageViewModel : ObservableObject
     protected virtual void OnDeactivated()
     {
     }
+
+    /// <summary>A aba pede para ser mostrada (ex.: a paleta abriu os logs de um container, ou um terminal foi aberto de outra aba).</summary>
+    public event EventHandler? ShowRequested;
+
+    protected void RequestShow() => ShowRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>O que esta aba oferece na paleta de comandos (Ctrl+K), montado com o estado atual.</summary>
+    public virtual IEnumerable<PaletteItem> PaletteItems() => [];
 }

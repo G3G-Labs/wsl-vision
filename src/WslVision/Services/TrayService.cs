@@ -3,17 +3,23 @@ using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using H.NotifyIcon;
 using Wpf.Ui.Controls;
+using WslVision.ViewModels;
+using WslVision.Views;
 using MenuItem = System.Windows.Controls.MenuItem;
 
 namespace WslVision.Services;
 
-/// <summary>Ícone e menu da bandeja: favoritos, VS Code, terminal, Docker e WSL sem abrir a janela.</summary>
+/// <summary>
+/// Ícone da bandeja. Clique esquerdo abre o painel rápido (estado, ação principal, consumo e projetos),
+/// o direito abre o menu (favoritos, terminal, Docker, WSL) e o duplo clique abre a janela.
+/// </summary>
 public sealed class TrayService(
     AppState state,
     SettingsService settings,
     LauncherService launcher,
-    DialogService dialogs,
-    Notifier notifier) : IDisposable
+    Notifier notifier,
+    EnvironmentViewModel env,
+    TrayFlyoutViewModel flyout) : IDisposable
 {
     private TaskbarIcon? _icon;
 
@@ -28,9 +34,21 @@ public sealed class TrayService(
             IconSource = new BitmapImage(new Uri("pack://application:,,,/Assets/app.ico")),
             ContextMenu = new ContextMenu(),
             MenuActivation = H.NotifyIcon.Core.PopupActivationMode.RightClick,
+            TrayPopup = new TrayFlyout { DataContext = flyout },
+            PopupActivation = H.NotifyIcon.Core.PopupActivationMode.LeftClick,
             NoLeftClickDelay = true,
         };
-        _icon.TrayLeftMouseUp += (_, _) => ShowWindowRequested?.Invoke(this, EventArgs.Empty);
+        _icon.TrayPopupOpen += (_, _) => _ = flyout.OnOpenedAsync();
+        if (_icon.TrayPopupResolved is { } popup)
+            popup.Closed += (_, _) => flyout.OnClosed();
+        flyout.CloseRequested += (_, _) => _icon?.CloseTrayPopup();
+        flyout.ShowWindowRequested += (_, _) => ShowWindowRequested?.Invoke(this, EventArgs.Empty);
+        flyout.ExitRequested += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
+        _icon.TrayMouseDoubleClick += (_, _) =>
+        {
+            _icon.CloseTrayPopup();
+            ShowWindowRequested?.Invoke(this, EventArgs.Empty);
+        };
         _icon.PreviewTrayContextMenuOpen += async (_, _) =>
         {
             BuildMenu();
@@ -54,7 +72,7 @@ public sealed class TrayService(
         {
             // Atalho principal: deixa tudo pronto para trabalhar com um clique.
             var startEnv = Item(state.IsStartingEnvironment ? state.EnvironmentStep! : "Iniciar ambiente", SymbolRegular.Play24,
-                () => _ = StartEnvironmentAsync());
+                () => _ = Safe(async () => Notify(await env.StartAsync())));
             startEnv.FontWeight = FontWeights.SemiBold;
             startEnv.IsEnabled = !state.IsStartingEnvironment;
             menu.Items.Add(startEnv);
@@ -78,7 +96,7 @@ public sealed class TrayService(
                 ? Item("Desligar o Docker", SymbolRegular.Stop24, () => _ = Safe(() => state.SetDockerAsync(false)))
                 : Item("Ligar o Docker", SymbolRegular.Play24, () => _ = Safe(() => state.SetDockerAsync(true))));
             if (state.IsDistroRunning)
-                menu.Items.Add(Item("Desligar o WSL", SymbolRegular.Power24, () => _ = ShutdownWslAsync()));
+                menu.Items.Add(Item("Desligar o WSL", SymbolRegular.Power24, () => _ = Safe(env.ShutdownWslAsync)));
             menu.Items.Add(new Separator());
         }
 
@@ -88,29 +106,8 @@ public sealed class TrayService(
         menu.Items.Add(Item("Sair do WSL Vision", SymbolRegular.ArrowExit20, () => ExitRequested?.Invoke(this, EventArgs.Empty)));
     }
 
-    private async Task StartEnvironmentAsync()
-    {
-        try
-        {
-            Notify(await state.StartEnvironmentAsync());
-        }
-        catch (Exception ex)
-        {
-            notifier.Error(ex);
-            Notify($"Não foi possível iniciar o ambiente: {ex.Message}");
-        }
-    }
-
     /// <summary>Notificação do Windows (a janela pode estar escondida).</summary>
     public void Notify(string message) => _icon?.ShowNotification("WSL Vision", message);
-
-    private async Task ShutdownWslAsync()
-    {
-        if (await dialogs.ConfirmAsync("Desligar o WSL?",
-                "Todas as distros param, junto com os containers e terminais abertos nelas. A memória volta para o Windows.",
-                "Desligar"))
-            await Safe(state.ShutdownWslAsync);
-    }
 
     private async Task Safe(Func<Task> action)
     {

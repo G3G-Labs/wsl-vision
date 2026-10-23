@@ -17,6 +17,7 @@ public sealed partial class AppState : ObservableObject
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(10) };
     private Task? _inflight;
     private string? _lastDistro;
+    private DateTimeOffset _lastOffPing = DateTimeOffset.MinValue;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText), nameof(IsDockerUp), nameof(IsDistroOff), nameof(IsDockerOff))]
@@ -44,7 +45,7 @@ public sealed partial class AppState : ObservableObject
         _wsl = wsl;
         _docker = docker;
         _settings = settings;
-        _timer.Tick += async (_, _) => await RefreshAsync();
+        _timer.Tick += async (_, _) => await RefreshAsync(periodic: true);
         _lastDistro = settings.Current.Distro;
         settings.Changed += (_, _) =>
         {
@@ -85,7 +86,9 @@ public sealed partial class AppState : ObservableObject
     /// Atualiza o estado. Se já houver uma consulta em andamento, espera ela e faz outra:
     /// quem chama (ex.: logo depois de "wsl --shutdown") sempre recebe um resultado novo, nunca um antigo.
     /// </summary>
-    public async Task RefreshAsync()
+    public Task RefreshAsync() => RefreshAsync(periodic: false);
+
+    private async Task RefreshAsync(bool periodic)
     {
         while (_inflight is { } running)
         {
@@ -93,7 +96,7 @@ public sealed partial class AppState : ObservableObject
             if (_inflight == running)
                 _inflight = null;
         }
-        var task = RefreshCoreAsync();
+        var task = RefreshCoreAsync(periodic);
         _inflight = task;
         try
         {
@@ -106,15 +109,19 @@ public sealed partial class AppState : ObservableObject
         }
     }
 
-    private async Task RefreshCoreAsync()
+    private async Task RefreshCoreAsync(bool periodic)
     {
         if (Distro is not { } distro)
             return;
         var running = await _wsl.IsRunningAsync(distro);
         var docker = false;
-        if (running && _docker.Client is { } client)
+        var now = DateTimeOffset.UtcNow;
+        // Sem pingar, o Docker continua desligado: só se pula o ping quando ele já estava desligado.
+        if (running && _docker.Client is { } client
+            && DockerPolling.ShouldPing(periodic, IsDistroRunning, IsDockerResponding, _lastOffPing, now))
         {
             docker = await client.PingAsync();
+            _lastOffPing = docker ? DateTimeOffset.MinValue : now;
             if (docker && DockerVersion is null)
             {
                 try { DockerVersion = (await client.GetVersionAsync()).Version; } catch { /* opcional */ }
@@ -187,15 +194,9 @@ public sealed partial class AppState : ObservableObject
             if (!await client.PingAsync())
             {
                 EnvironmentStep = "Ligando o Docker…";
+                // Já volta com o Docker respondendo (a espera acontece dentro da distro).
                 await _docker.StartServiceAsync(distro);
                 client = _docker.Client!;
-                var deadline = DateTime.UtcNow.AddSeconds(30);
-                while (!await client.PingAsync())
-                {
-                    if (DateTime.UtcNow > deadline)
-                        throw new TimeoutException("O Docker não respondeu em 30 segundos.");
-                    await Task.Delay(1000);
-                }
             }
 
             if (upTo == LaunchAction.DistroAndDocker)

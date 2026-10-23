@@ -40,7 +40,7 @@
                     </DockPanel>
                     <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" />
                     <DockPanel Style="{StaticResource SettingRow}">
-                        <ui:Button Appearance="Secondary" Command="{Binding RunSetupCommand}" Content="Abrir o assistente" DockPanel.Dock="Right" />
+                        <Button Style="{StaticResource BtnSecondary}" Command="{Binding RunSetupCommand}" Content="Abrir o assistente" DockPanel.Dock="Right" />
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Text="Configuração inicial" />
                             <TextBlock Style="{StaticResource Caption}" Text="Verificar o Docker, o systemd e as permissões de novo" />
@@ -77,7 +77,7 @@
                         <RadioButton Margin="0,4" GroupName="OnLaunch" IsChecked="{Binding OnLaunch, Converter={StaticResource EnumEquals}, ConverterParameter=Environment}">
                             <StackPanel>
                                 <TextBlock Text="Iniciar o ambiente completo" />
-                                <TextBlock Style="{StaticResource Caption}" Text="Distro, Docker e os projetos marcados com o alfinete na aba Containers." />
+                                <TextBlock Style="{StaticResource Caption}" Text="Distro, Docker e os projetos com &quot;Com o ambiente&quot; ligado (na Visão geral ou em Containers)." />
                             </StackPanel>
                         </RadioButton>
                     </StackPanel>
@@ -96,7 +96,7 @@
             <TextBlock Margin="0,0,0,8" Style="{StaticResource ColumnHeader}" Text="Acessibilidade" />
             <Border Margin="0,0,0,20" Style="{StaticResource CardBorder}">
                 <DockPanel Style="{StaticResource SettingRow}">
-                    <ComboBox Width="240" AutomationProperties.Name="Tamanho da interface" DisplayMemberPath="Label" DockPanel.Dock="Right" ItemsSource="{Binding ScaleOptions}" SelectedItem="{Binding SelectedScale}" />
+                    <ComboBox MinWidth="290" AutomationProperties.Name="Tamanho da interface" DisplayMemberPath="Label" DockPanel.Dock="Right" ItemsSource="{Binding ScaleOptions}" SelectedItem="{Binding SelectedScale}" />
                     <StackPanel>
                         <TextBlock FontWeight="SemiBold" Text="Tamanho da interface" />
                         <TextBlock Style="{StaticResource Caption}" Text="Aumenta textos e botões. Atalhos: Ctrl+1 a Ctrl+5 trocam de aba, Ctrl+vírgula abre Ajustes, Ctrl+F busca, F5 atualiza, Shift+F10 abre o menu de um item." />
@@ -141,7 +141,7 @@
                     <TextBlock Margin="20,0,20,8" Style="{StaticResource Secondary}" Text="Nenhuma alteração registrada."
                                Visibility="{Binding HasChanges, Converter={StaticResource InverseBoolToVis}}" />
                     <DockPanel Style="{StaticResource SettingRow}">
-                        <ui:Button Appearance="Danger" Command="{Binding UndoAllCommand}" Content="Desfazer tudo" DockPanel.Dock="Right" IsEnabled="{Binding HasChanges}" />
+                        <Button Style="{StaticResource BtnDanger}" Command="{Binding UndoAllCommand}" Content="Desfazer tudo" DockPanel.Dock="Right" IsEnabled="{Binding HasChanges}" />
                         <TextBlock VerticalAlignment="Center" Style="{StaticResource Caption}" Text="Volta a distro e o Windows para como estavam antes do WSL Vision." />
                     </DockPanel>
                 </StackPanel>
@@ -150,7 +150,7 @@
             <TextBlock Margin="0,0,0,8" Style="{StaticResource ColumnHeader}" Text="Sobre" />
             <Border Style="{StaticResource CardBorder}">
                 <DockPanel Style="{StaticResource SettingRow}">
-                    <ui:Button Appearance="Secondary" Command="{Binding OpenSettingsFolderCommand}" Content="Abrir pasta de configurações" DockPanel.Dock="Right" />
+                    <Button Style="{StaticResource BtnSecondary}" Command="{Binding OpenSettingsFolderCommand}" Content="Abrir pasta de configurações" DockPanel.Dock="Right" />
                     <StackPanel>
                         <TextBlock FontWeight="SemiBold">
                             <Run Text="WSL Vision " /><Run Text="{Binding Version, Mode=OneWay}" />
