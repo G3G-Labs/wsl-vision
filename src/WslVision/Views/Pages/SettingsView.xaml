@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:layout="clr-namespace:WslVision.Views.Layout"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:svc="clr-namespace:WslVision.Services"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:vm="clr-namespace:WslVision.ViewModels"
     d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}"
@@ -51,6 +52,46 @@
                                     <TextBlock Style="{StaticResource Caption}" Text="Verificar o Docker, o systemd e as permissões de novo" />
                                 </StackPanel>
                             </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!--  Limites do WSL (.wslconfig): salvar reinicia o WSL  -->
+                    <TextBlock Margin="0,0,0,8" Style="{StaticResource ColumnHeader}" Text="Limites do WSL" />
+                    <Border Margin="0,0,0,20" Style="{StaticResource CardBorder}">
+                        <StackPanel Margin="20,16" DataContext="{Binding Limits}">
+                            <Border Margin="0,0,0,14" Padding="12,10" Style="{StaticResource InsetBorder}">
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding RecommendationTitle}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,2,0,8" Style="{StaticResource Caption}" Text="{Binding RecommendationReason}" TextWrapping="Wrap" />
+                                    <Button Height="30" HorizontalAlignment="Left" Command="{Binding ApplyRecommendedCommand}" Content="Usar recomendado"
+                                            IsEnabled="{Binding IsRecommended, Converter={StaticResource InverseBool}}" Style="{StaticResource BtnSecondary}"
+                                            ToolTip="Coloca os controles nos valores recomendados. Nada é gravado até você salvar." />
+                                </StackPanel>
+                            </Border>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding MemoryLimitText}" />
+                                <TextBlock FontWeight="SemiBold" Text="Memória máxima" />
+                            </DockPanel>
+                            <Slider Margin="0,6,0,2" AutomationProperties.Name="Memória máxima do WSL em GB" IsSnapToTickEnabled="True" Maximum="{Binding TotalRamGb}" Minimum="1" TickFrequency="1" Value="{Binding MemoryLimitGb}" />
+                            <TextBlock Margin="0,0,0,12" Style="{StaticResource Caption}" Text="{Binding RamHint}" TextWrapping="Wrap" />
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding ProcessorsText}" />
+                                <TextBlock FontWeight="SemiBold" Text="Processadores" />
+                            </DockPanel>
+                            <Slider Margin="0,6,0,12" AutomationProperties.Name="Processadores do WSL" IsSnapToTickEnabled="True" Maximum="{Binding CpuCount}" Minimum="1" TickFrequency="1" Value="{Binding Processors}" />
+                            <DockPanel Margin="0,0,0,14">
+                                <ui:ToggleSwitch AutomationProperties.Name="Devolver memória ociosa ao Windows" DockPanel.Dock="Right" IsChecked="{Binding AutoMemoryReclaim}" />
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Text="Devolver memória ociosa" />
+                                    <TextBlock Style="{StaticResource Caption}" Text="Reduz o vmmemWSL aos poucos quando a distro está ociosa" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DockPanel>
+                            <ui:InfoBar Margin="0,0,0,12" IsClosable="False" IsOpen="{Binding SavedMessageVisible}" Message="O WSL foi reiniciado com os novos limites." Severity="Success" Title="Salvo." />
+                            <WrapPanel>
+                                <Button Margin="0,0,8,8" Command="{Binding SaveLimitsCommand}" Content="Salvar e reiniciar o WSL" IsEnabled="{Binding IsDirty}" Style="{StaticResource BtnPrimary}" />
+                                <Button Margin="0,0,8,8" Command="{Binding UndoLimitsCommand}" Content="Desfazer alterações" IsEnabled="{Binding CanUndoConfig}" Style="{StaticResource BtnSecondary}" />
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="Para aplicar, o WSL é desligado e ligado de novo. Os containers ficam parados por alguns segundos." TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
 
@@ -162,6 +203,49 @@
                                 <Button Style="{StaticResource BtnDanger}" Command="{Binding UndoAllCommand}" Content="Desfazer tudo" DockPanel.Dock="Right" IsEnabled="{Binding HasChanges}" />
                                 <TextBlock VerticalAlignment="Center" Style="{StaticResource Caption}" Text="Volta a distro e o Windows para como estavam antes do WSL Vision." />
                             </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!--  Diagnóstico: o que aconteceu há pouco e o registro em arquivo, para achar e relatar problemas  -->
+                    <TextBlock Margin="0,0,0,8" Style="{StaticResource ColumnHeader}" Text="Diagnóstico" />
+                    <Border Margin="0,0,0,20" Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <StackPanel Margin="20,14,20,10">
+                                <TextBlock Margin="0,0,0,8" FontWeight="SemiBold" Text="Atividade recente" />
+                                <ItemsControl MaxHeight="220" ItemsSource="{Binding Activity.Entries}">
+                                    <ItemsControl.Template>
+                                        <ControlTemplate TargetType="ItemsControl">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsPresenter />
+                                            </ScrollViewer>
+                                        </ControlTemplate>
+                                    </ItemsControl.Template>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type svc:ActivityEntry}">
+                                            <DockPanel Margin="0,0,0,7">
+                                                <Ellipse Width="6" Height="6" Margin="0,0,10,0" VerticalAlignment="Center" DockPanel.Dock="Left" Fill="{Binding Tone, Converter={StaticResource ToneBrush}}" />
+                                                <TextBlock Margin="10,0,0,0" DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding TimeText}" />
+                                                <TextBlock FontSize="13" Text="{Binding Text}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text}" />
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Style="{StaticResource Caption}" Text="As ações do app e o que acontecer com os containers aparecem aqui." TextWrapping="Wrap"
+                                           Visibility="{Binding Activity.Entries.Count, Converter={StaticResource ZeroToVis}}" />
+                            </StackPanel>
+                            <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" />
+                            <layout:SplitPanel Margin="20,14" Spacing="12" StackBelow="460">
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock FontWeight="SemiBold" Text="Registro do app" />
+                                    <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                               Text="Ações, mudanças de estado, avisos e erros com detalhes, um arquivo por dia (guardados por 14 dias). Anexe ao relatar um problema." />
+                                    <TextBlock Margin="0,4,0,0" FontFamily="{StaticResource Wv.Mono}" FontSize="12" Foreground="{StaticResource Wv.Text3}" Text="{Binding LogFolder, Mode=OneWay}" TextTrimming="CharacterEllipsis" ToolTip="{Binding LogFolder, Mode=OneWay}" />
+                                </StackPanel>
+                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                    <Button Margin="0,0,8,0" Command="{Binding OpenLogCommand}" Content="Abrir o log de hoje" Style="{StaticResource BtnSecondary}" />
+                                    <Button Command="{Binding OpenLogFolderCommand}" Content="Abrir a pasta" Style="{StaticResource BtnSecondary}" />
+                                </StackPanel>
+                            </layout:SplitPanel>
                         </StackPanel>
                     </Border>
 

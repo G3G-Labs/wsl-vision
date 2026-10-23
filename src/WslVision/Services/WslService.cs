@@ -90,7 +90,8 @@ public sealed class WslService
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            var r = await ProcessRunner.RunAsync(WslExe, ["--list", "--running", "--quiet"], env: Env, timeout: TimeSpan.FromSeconds(15));
+            var r = await ProcessRunner.RunAsync(WslExe, ["--list", "--running", "--quiet"], env: Env, timeout: TimeSpan.FromSeconds(15),
+                logFailure: false); // a cada 10 s, e sair com erro aqui é o normal (nada ligado)
             if (!r.Success)
                 return set; // "Não há distribuições em execução." sai com código de erro.
             foreach (var line in r.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))

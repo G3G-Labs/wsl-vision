@@ -56,9 +56,10 @@ public sealed class SettingsService(string? folder = null, TimeSpan? retryDelay 
             Current = Deserialize(json) ?? new AppSettings();
             Migrate(Current);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
             // Arquivo corrompido: guarda uma cópia e começa do zero.
+            AppLog.Error("ajustes", ex, "settings.json corrompido");
             try { File.Copy(FilePath, FilePath + ".corrompido", overwrite: true); } catch { /* sem cópia */ }
             Current = new AppSettings();
             LoadProblem = "As configurações estavam corrompidas e foram recriadas. O arquivo antigo ficou como settings.json.corrompido.";
@@ -153,6 +154,7 @@ public sealed class SettingsService(string? folder = null, TimeSpan? retryDelay 
     {
         if (Current.Changes.Any(c => c.Kind == kind && c.Distro == distro))
             return;
+        AppLog.Info("ajustes", $"Alteração registrada: {kind}{(distro is null ? "" : $" ({distro})")}{(detail is null ? "" : $" · {detail}")}");
         Update(s => s.Changes.Add(new ConfigChange { Kind = kind, Distro = distro, Detail = detail }));
     }
 }

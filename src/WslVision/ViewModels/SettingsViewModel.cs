@@ -22,8 +22,16 @@ public sealed partial class SettingsViewModel : PageViewModel
     private bool _loading;
 
     public SettingsViewModel(SettingsService settings, WslService wsl, SetupService setup, WslConfigService wslConfig,
-        DockerManager docker, AppState state, DialogService dialogs, Notifier notifier)
+        DockerManager docker, AppState state, DialogService dialogs, Notifier notifier, WslLimitsViewModel limits, ActivityLog activity)
     {
+        Limits = limits;
+        Activity = activity;
+        // Salvar os limites reinicia o WSL: o progresso aparece como o de qualquer ação de Ajustes.
+        limits.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(WslLimitsViewModel.IsBusy))
+                IsBusy = limits.IsBusy;
+        };
         _settings = settings;
         _wsl = wsl;
         _setup = setup;
@@ -45,6 +53,15 @@ public sealed partial class SettingsViewModel : PageViewModel
     public override SymbolRegular Icon => SymbolRegular.Settings24;
 
     public ObservableCollection<string> Distros { get; } = [];
+
+    /// <summary>Limites de memória e CPU do WSL (.wslconfig).</summary>
+    public WslLimitsViewModel Limits { get; }
+
+    /// <summary>O que aconteceu há pouco: ações do app e eventos dos containers.</summary>
+    public ActivityLog Activity { get; }
+
+    /// <summary>Onde fica o registro do app, para mandar junto ao relatar um problema.</summary>
+    public string LogFolder => AppLog.Folder;
 
     public ObservableCollection<string> ChangesLog { get; } = [];
 
@@ -84,6 +101,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         _loading = true;
         try
         {
+            Limits.Load();
             StartWithWindows = StartupService.IsEnabled;
             CloseToTray = _settings.Current.CloseToTray;
             TerminalHelpers = _settings.Current.TerminalHelpers;
@@ -312,6 +330,40 @@ public sealed partial class SettingsViewModel : PageViewModel
     [RelayCommand]
     private void RunSetup() => RunSetupRequested?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Abre o log de hoje no programa padrão (Bloco de Notas, em geral).</summary>
+    [RelayCommand]
+    private void OpenLog()
+    {
+        try
+        {
+            // Cada linha já vai para o disco na hora; num dia sem nada registrado, esta cria o arquivo.
+            if (!File.Exists(AppLog.CurrentFile))
+                AppLog.Info("app", "Log aberto em Ajustes");
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppLog.CurrentFile) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _notifier.Error(ex);
+        }
+    }
+
+    /// <summary>Abre a pasta dos logs no Explorer, para anexar os arquivos ao relatar um problema.</summary>
+    [RelayCommand]
+    private void OpenLogFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(AppLog.Folder);
+            var psi = new System.Diagnostics.ProcessStartInfo("explorer.exe") { UseShellExecute = false };
+            psi.ArgumentList.Add(AppLog.Folder);
+            System.Diagnostics.Process.Start(psi)?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _notifier.Error(ex);
+        }
+    }
+
     [RelayCommand]
     private async Task UndoAll()
     {
@@ -326,6 +378,7 @@ public sealed partial class SettingsViewModel : PageViewModel
             _docker.Reset();
             _settings.Update(s => s.Connection = DockerConnectionMode.Socket);
             LoadChanges();
+            Limits.Load();
             _loading = true;
             UseTcp = false;
             _loading = false;

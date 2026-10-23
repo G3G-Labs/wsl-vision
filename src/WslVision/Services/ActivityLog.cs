@@ -10,8 +10,8 @@ public sealed record ActivityEntry(string Text, Tone Tone, DateTimeOffset Time)
 }
 
 /// <summary>
-/// "Atividade" da Visão geral: o que mudou nos containers (vindo do fluxo de eventos do Docker que já está
-/// aberto) e as ações do app. Só na memória, com as últimas entradas.
+/// "Atividade" em Ajustes: o que mudou nos containers (vindo do fluxo de eventos do Docker que já está
+/// aberto) e as ações do app. Na tela, só as últimas entradas; no <see cref="AppLog"/>, todas.
 /// </summary>
 public sealed class ActivityLog
 {
@@ -29,6 +29,7 @@ public sealed class ActivityLog
 
     private void Insert(ActivityEntry entry)
     {
+        AppLog.Info("atividade", entry.Text);
         Entries.Insert(0, entry);
         while (Entries.Count > Max)
             Entries.RemoveAt(Entries.Count - 1);

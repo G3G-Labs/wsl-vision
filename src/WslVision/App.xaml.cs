@@ -41,7 +41,23 @@ public partial class App : Application
         }
 
         base.OnStartup(e);
+        AppLog.Prune();
+        AppLog.Info("app", $"WSL Vision {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} aberto · "
+            + $"Windows {Environment.OSVersion.Version} · .NET {Environment.Version} · {Environment.ProcessorCount} processadores"
+            + (e.Args.Length > 0 ? $" · argumentos: {string.Join(' ', e.Args)}" : ""));
         DispatcherUnhandledException += OnUnhandled;
+        // Erros fora da thread da janela: não dá para mostrar, mas ficam no log.
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+                AppLog.Error("fatal", ex, args.IsTerminating ? "Erro não tratado; o app vai fechar" : "Erro não tratado");
+            AppLog.Flush();
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            AppLog.Error("tarefa", args.Exception, "Erro numa tarefa em segundo plano que ninguém esperou");
+            args.SetObserved();
+        };
         // Visual do redesign: tema escuro e o azul do produto como cor de destaque, independentes do Windows.
         ApplicationThemeManager.Apply(ApplicationTheme.Dark, Wpf.Ui.Controls.WindowBackdropType.None, updateAccent: false);
         ApplicationAccentColorManager.Apply(
@@ -65,9 +81,10 @@ public partial class App : Application
         var state = new AppState(_wsl, _docker, Settings);
         var files = new FileService(_wsl);
 
-        var settingsVm = new SettingsViewModel(Settings, _wsl, _setup, wslConfig, _docker, state, _dialogs, Notifier);
-        settingsVm.RunSetupRequested += (_, _) => RunSetup(fromSettings: true);
         var activity = new ActivityLog();
+        var limits = new WslLimitsViewModel(state, _metrics, wslConfig, Settings, _dialogs, Notifier);
+        var settingsVm = new SettingsViewModel(Settings, _wsl, _setup, wslConfig, _docker, state, _dialogs, Notifier, limits, activity);
+        settingsVm.RunSetupRequested += (_, _) => RunSetup(fromSettings: true);
         // Uma lista de containers e um modelo do ambiente, compartilhados por todas as telas.
         var inventory = new ContainerInventory(state, _docker, _metrics, Settings, Notifier, _launcher, activity);
         var terminal = new TerminalViewModel(Settings, _launcher, _dialogs, Notifier, Workspaces, _wsl, inventory, state);
@@ -78,7 +95,7 @@ public partial class App : Application
             Notifier,
             containers,
             new FilesViewModel(state, Settings, files, _launcher, _dialogs, Notifier, terminal),
-            new MonitorViewModel(state, _metrics, wslConfig, Settings, _dialogs, Notifier, inventory, env, activity),
+            new MonitorViewModel(state, _metrics, Settings, inventory, env),
             terminal,
             new MaintenanceViewModel(state, new MaintenanceService(_wsl), _docker, Settings, _metrics, _dialogs, Notifier),
             settingsVm,
@@ -158,7 +175,7 @@ public partial class App : Application
 
     private void OnUnhandled(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        // Um erro inesperado vira aviso na janela em vez de derrubar o app.
+        // Um erro inesperado vira aviso na janela em vez de derrubar o app (e vai para o log com o stack trace).
         Notifier.Error(e.Exception);
         e.Handled = true;
     }
@@ -170,6 +187,9 @@ public partial class App : Application
         _tray?.Dispose();
         _docker?.Dispose();
         _single?.Dispose();
+        if (_main is not null)
+            AppLog.Info("app", $"WSL Vision fechado (código {e.ApplicationExitCode})");
+        AppLog.Flush();
         base.OnExit(e);
     }
 }

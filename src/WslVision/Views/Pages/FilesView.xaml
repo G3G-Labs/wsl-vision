@@ -215,8 +215,9 @@
         </layout:SplitPanel>
 
         <Grid Grid.Row="2">
-            <!--  Locais ao lado da pasta; no estreito, viram uma fileira em cima dela  -->
-            <layout:SplitPanel FirstWidth="220" SecondWidth="*" Spacing="14" StackBelow="760" StackedSecondHeight="*">
+            <!--  Locais ao lado da pasta; no estreito, viram uma fileira em cima dela. Com a distro desligada, o aviso abaixo ocupa o lugar (a última listagem não vale mais)  -->
+            <layout:SplitPanel FirstWidth="220" SecondWidth="*" Spacing="14" StackBelow="760" StackedSecondHeight="*"
+                               Visibility="{Binding State.IsDistroOff, Converter={StaticResource InverseBoolToVis}}">
                 <!--  Favoritos e locais  -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,0,10,0">

@@ -133,6 +133,13 @@ public sealed partial class AppState : ObservableObject
         HasCheckedOnce = true;
     }
 
+    // Toda virada de estado vai para o log: é o que explica "o app achou que estava ligado".
+    partial void OnIsDistroRunningChanged(bool value) =>
+        AppLog.Info("estado", $"Distro {Distro ?? "?"} {(value ? "ligada" : "desligada")}");
+
+    partial void OnIsDockerRespondingChanged(bool value) =>
+        AppLog.Info("estado", value ? "Docker respondendo" : "Docker sem resposta");
+
     partial void OnHasCheckedOnceChanged(bool value)
     {
         OnPropertyChanged(nameof(IsDistroOff));
@@ -180,6 +187,7 @@ public sealed partial class AppState : ObservableObject
             return "Nada para ligar.";
         if (IsStartingEnvironment)
             return "O ambiente já está sendo iniciado.";
+        AppLog.Info("estado", $"Iniciando o ambiente (até: {upTo})");
         try
         {
             if (!await _wsl.IsRunningAsync(distro))
@@ -238,6 +246,7 @@ public sealed partial class AppState : ObservableObject
 
     public async Task ShutdownWslAsync()
     {
+        AppLog.Info("estado", "Desligando o WSL (wsl --shutdown)");
         _docker.Reset();
         await _wsl.ShutdownAsync();
         DockerVersion = null;

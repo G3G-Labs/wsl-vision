@@ -18,7 +18,8 @@ public static class ProcessRunner
         string? stdin = null,
         IReadOnlyDictionary<string, string>? env = null,
         TimeSpan? timeout = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool logFailure = true)
     {
         var psi = new ProcessStartInfo(fileName)
         {
@@ -37,7 +38,16 @@ public static class ProcessRunner
                 psi.Environment[k] = v;
 
         using var p = new Process { StartInfo = psi };
-        p.Start();
+        var started = Stopwatch.StartNew();
+        try
+        {
+            p.Start();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("processo", ex, $"Não abriu: {Describe(fileName, psi.ArgumentList)}");
+            throw;
+        }
 
         var outTask = p.StandardOutput.ReadToEndAsync(ct);
         var errTask = p.StandardError.ReadToEndAsync(ct);
@@ -61,11 +71,25 @@ public static class ProcessRunner
         {
             TryKill(p);
             ct.ThrowIfCancellationRequested();
+            AppLog.Error("processo", $"Sem resposta em {started.Elapsed.TotalSeconds:0} s, encerrado: {Describe(fileName, psi.ArgumentList)}");
             throw new TimeoutException($"O comando {Path.GetFileName(fileName)} demorou demais para responder.");
         }
 
-        return new ProcessResult(p.ExitCode, await outTask, await errTask);
+        var result = new ProcessResult(p.ExitCode, await outTask, await errTask);
+        if (!result.Success && logFailure)
+        {
+            var err = result.StdErr.Trim();
+            AppLog.Warn("processo", $"Código {result.ExitCode} em {started.ElapsedMilliseconds} ms: {Describe(fileName, psi.ArgumentList)}"
+                + (err.Length > 0 ? $"{Environment.NewLine}{Truncate(err, 1500)}" : ""));
+        }
+        return result;
     }
+
+    /// <summary>O comando numa linha para o log (os scripts vão pelo stdin e não aparecem aqui).</summary>
+    private static string Describe(string fileName, IEnumerable<string> args) =>
+        Truncate($"{Path.GetFileName(fileName)} {string.Join(' ', args)}", 400);
+
+    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
 
     public static void TryKill(Process p)
     {

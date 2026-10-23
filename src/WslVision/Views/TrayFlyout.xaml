@@ -219,14 +219,16 @@
 
             <!--  Rodapé  -->
             <Border Margin="0,6,0,0" Padding="8,6,8,8" BorderBrush="#26282D" BorderThickness="0,1,0,0">
-                <UniformGrid Columns="3">
+                <!--  Rows=1: as colunas contam só os botões visíveis (Desligar some com o WSL já desligado)  -->
+                <UniformGrid Rows="1">
                     <Button Height="36" HorizontalAlignment="Stretch" Command="{Binding OpenTerminalCommand}" FontSize="12" Style="{StaticResource BtnGhost}">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Margin="0,0,6,0" FontSize="14" Symbol="WindowConsole20" />
                             <TextBlock VerticalAlignment="Center" Text="Terminal" />
                         </StackPanel>
                     </Button>
-                    <Button Height="36" HorizontalAlignment="Stretch" Command="{Binding ShutdownWslCommand}" FontSize="12" Style="{StaticResource BtnGhost}">
+                    <Button Height="36" HorizontalAlignment="Stretch" Command="{Binding ShutdownWslCommand}" FontSize="12" Style="{StaticResource BtnGhost}"
+                            Visibility="{Binding Env.State.IsDistroRunning, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <ui:SymbolIcon Margin="0,0,6,0" FontSize="14" Symbol="Power24" />
                             <TextBlock VerticalAlignment="Center" Text="Desligar WSL" />
