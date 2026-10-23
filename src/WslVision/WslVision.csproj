@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>WslVision</RootNamespace>
+    <AssemblyName>WslVision</AssemblyName>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.1.0</Version>
+    <Product>WSL Vision</Product>
+    <Company>G3G Labs</Company>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SatelliteResourceLanguages>pt-BR;en</SatelliteResourceLanguages>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+
+  <!--
+    Publicação em um único .exe. WPF não suporta trimming (NETSDK1168).
+      dotnet publish -c Release                  → portátil: inclui o .NET, roda em qualquer Windows (maior)
+      dotnet publish -c Release -p:Edition=Lite  → leve: usa o .NET Desktop Runtime 10 já instalado (poucos MB)
+    Sem compressão de propósito: comprimido, o .NET descompacta tudo na RAM ao abrir;
+    sem compressão, as bibliotecas são mapeadas do disco e só o que é usado ocupa memória.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
+    <SelfContained Condition="'$(Edition)' != 'Lite'">true</SelfContained>
+    <SelfContained Condition="'$(Edition)' == 'Lite'">false</SelfContained>
+  </PropertyGroup>
+
+  <!-- Menos memória e menos threads em segundo plano: um app de bandeja não precisa de GC concorrente. -->
+  <PropertyGroup>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <AutoreleasePoolSupport>false</AutoreleasePoolSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.4.1" />
+    <!-- Terminal embutido: controle do próprio Windows Terminal (renderização nativa + ConPTY), sem navegador. -->
+    <PackageReference Include="EasyWindowsTerminalControl" Version="1.0.38" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <!--
+    Terminal embutido.
+    - Sem OpenConsole.exe: o conpty.dll do pacote cai no conhost do próprio Windows, e o .exe único não carrega o
+      OpenConsole (que nem seria extraído do pacote único). As propriedades valem porque os itens do .targets do
+      pacote são avaliados depois de todas as propriedades.
+    - O pacote CI.Microsoft.Terminal.Wpf lista o .pdb da dll nativa (85 MB) como arquivo de runtime: fica de fora,
+      senão iria para dentro do .exe.
+    - Esse pacote também foi gerado com "\" nos caminhos internos. No Windows o NuGet extrai normal; no Linux (o build
+      e o publish deste projeto rodam pelo WSL) os arquivos ficam com "\" no próprio nome. Só fora do Windows, o build
+      cria cópias com os caminhos certos dentro da pasta do pacote, antes de o NuGet procurar por eles.
+  -->
+  <PropertyGroup>
+    <ConptyRequiresx86Host>false</ConptyRequiresx86Host>
+    <ConptyRequiresx64Host>false</ConptyRequiresx64Host>
+    <ConptyRequiresARM64Host>false</ConptyRequiresARM64Host>
+    <TerminalWpfPackageDir>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))ci.microsoft.terminal.wpf/1.25.260303002/</TerminalWpfPackageDir>
+  </PropertyGroup>
+
+  <Target Name="FixTerminalWpfPackageOnLinux" BeforeTargets="ResolvePackageAssets" Condition="'$(OS)' != 'Windows_NT' And Exists('$(TerminalWpfPackageDir)')">
+    <Exec Command="cd &quot;$(TerminalWpfPackageDir)&quot; &amp;&amp; for f in *\\*; do [ -f &quot;%24f&quot; ] || continue; n=%24(printf '%s' &quot;%24f&quot; | tr '\\' '/'); mkdir -p &quot;%24(dirname &quot;%24n&quot;)&quot; &amp;&amp; cp -n &quot;%24f&quot; &quot;%24n&quot;; done" />
+  </Target>
+
+  <Target Name="DropTerminalNativePdb" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(Extension)' == '.pdb'" />
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)" Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -1,0 +1,37 @@
+<Application
+    x:Class="WslVision.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Light" />
+                <ui:ControlsDictionary />
+                <ResourceDictionary Source="Themes/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--  Botão só com ícone (área de clique de 40 px). Fica aqui para herdar o estilo do WPF-UI com segurança.  -->
+            <Style x:Key="IconButton" BasedOn="{StaticResource {x:Type ui:Button}}" TargetType="ui:Button">
+                <Setter Property="Appearance" Value="Transparent" />
+                <Setter Property="Width" Value="40" />
+                <Setter Property="Height" Value="40" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <!--  Botões só com ícone mostram o nome rápido ao passar o mouse  -->
+                <Setter Property="ToolTipService.InitialShowDelay" Value="250" />
+            </Style>
+
+            <!--  Botão discreto, sem borda: itens de lista, trilha de pastas e barras de ferramentas  -->
+            <Style x:Key="SubtleButton" BasedOn="{StaticResource {x:Type ui:Button}}" TargetType="ui:Button">
+                <Setter Property="Appearance" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

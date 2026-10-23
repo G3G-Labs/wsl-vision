@@ -1,0 +1,184 @@
+<ui:FluentWindow
+    x:Class="WslVision.Views.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:pages="clr-namespace:WslVision.Views.Pages"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:vm="clr-namespace:WslVision.ViewModels"
+    Title="WSL Vision"
+    Width="1240"
+    Height="800"
+    MinWidth="900"
+    MinHeight="600"
+    d:DataContext="{d:DesignInstance Type=vm:MainWindowViewModel}"
+    ExtendsContentIntoTitleBar="True"
+    WindowBackdropType="Mica"
+    WindowCornerPreference="Round"
+    WindowStartupLocation="CenterScreen"
+    mc:Ignorable="d">
+
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type vm:ContainersViewModel}">
+            <pages:ContainersView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FilesViewModel}">
+            <pages:FilesView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MonitorViewModel}">
+            <pages:MonitorView />
+        </DataTemplate>
+        <!--  O Terminal não usa template: a view dele é fixa (abaixo), para os terminais abertos sobreviverem à troca de abas  -->
+        <DataTemplate DataType="{x:Type vm:TerminalViewModel}">
+            <Grid />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MaintenanceViewModel}">
+            <pages:MaintenanceView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+            <pages:SettingsView />
+        </DataTemplate>
+    </Window.Resources>
+
+    <!--  Atalhos: Ctrl+1..5 trocam de aba, Ctrl+vírgula abre Ajustes  -->
+    <Window.InputBindings>
+        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Containers}" Gesture="Ctrl+D1" />
+        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Files}" Gesture="Ctrl+D2" />
+        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Monitor}" Gesture="Ctrl+D3" />
+        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Terminal}" Gesture="Ctrl+D4" />
+        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Maintenance}" Gesture="Ctrl+D5" />
+        <KeyBinding Command="{Binding NavigateCommand}" CommandParameter="{Binding Settings}" Gesture="Ctrl+OemComma" />
+    </Window.InputBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar
+            Grid.Row="0"
+            Title="WSL Vision">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" />
+            </ui:TitleBar.Icon>
+            <ui:TitleBar.TrailingContent>
+                <Border
+                    Margin="0,0,12,0"
+                    Padding="10,2"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse x:Name="StatusDot" Style="{StaticResource Dot}" />
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                            Text="{Binding State.StatusText}" />
+                    </StackPanel>
+                </Border>
+            </ui:TitleBar.TrailingContent>
+        </ui:TitleBar>
+
+        <Grid x:Name="ContentRoot" Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="80" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!--  Menu lateral: quatro abas + Ajustes no rodapé  -->
+            <DockPanel Grid.Column="0" Margin="0,4,0,12">
+                <RadioButton
+                    AutomationProperties.Name="Ajustes"
+                    Command="{Binding NavigateCommand}"
+                    CommandParameter="{Binding Settings}"
+                    DockPanel.Dock="Bottom"
+                    GroupName="Nav"
+                    IsChecked="{Binding Settings.IsCurrent, Mode=OneWay}"
+                    Style="{StaticResource NavRailItem}">
+                    <StackPanel>
+                        <ui:SymbolIcon HorizontalAlignment="Center" FontSize="20" Symbol="Settings24" />
+                        <TextBlock Margin="0,3,0,0" HorizontalAlignment="Center" FontSize="11" Text="Ajustes" />
+                    </StackPanel>
+                </RadioButton>
+                <ItemsControl VerticalAlignment="Top" ItemsSource="{Binding Pages}" KeyboardNavigation.TabNavigation="Once">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:PageViewModel}">
+                            <RadioButton
+                                AutomationProperties.Name="{Binding Title}"
+                                Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}"
+                                GroupName="Nav"
+                                IsChecked="{Binding IsCurrent, Mode=OneWay}"
+                                Style="{StaticResource NavRailItem}">
+                                <StackPanel>
+                                    <ui:SymbolIcon HorizontalAlignment="Center" FontSize="20" Symbol="{Binding Icon}" />
+                                    <TextBlock Margin="0,3,0,0" HorizontalAlignment="Center" FontSize="11" Text="{Binding Title}" />
+                                </StackPanel>
+                            </RadioButton>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
+
+            <!--  Área da aba atual  -->
+            <Border
+                Grid.Column="1"
+                Background="{DynamicResource LayerFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1,1,0,0"
+                CornerRadius="8,0,0,0">
+                <Grid>
+                    <ContentControl Content="{Binding Current}" Focusable="False" />
+                    <pages:TerminalView DataContext="{Binding Terminal}" Visibility="{Binding IsCurrent, Converter={StaticResource BoolToVis}}" />
+                    <ProgressBar
+                        Height="3"
+                        VerticalAlignment="Top"
+                        IsIndeterminate="{Binding Current.IsBusy}"
+                        Visibility="{Binding Current.IsBusy, Converter={StaticResource BoolToVis}}" />
+
+                    <!--  Aviso curto (substitui caixas de diálogo para mensagens simples)  -->
+                    <Border
+                        MaxWidth="640"
+                        Margin="16,0,16,20"
+                        Padding="14,10,6,10"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Bottom"
+                        Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Visibility="{Binding Notifier.Message, Converter={StaticResource NullToVis}}">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="24" Opacity="0.18" ShadowDepth="4" />
+                        </Border.Effect>
+                        <DockPanel>
+                            <ui:Button
+                                Width="32"
+                                Height="32"
+                                Margin="8,0,0,0"
+                                Style="{StaticResource SubtleButton}"
+                                AutomationProperties.Name="Fechar aviso"
+                                Click="OnDismissToast"
+                                DockPanel.Dock="Right"
+                                Icon="{ui:SymbolIcon Dismiss24}" />
+                            <ui:SymbolIcon
+                                x:Name="ToastIcon"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                FontSize="18"
+                                Symbol="CheckmarkCircle24" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Text="{Binding Notifier.Message}"
+                                TextWrapping="Wrap" />
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

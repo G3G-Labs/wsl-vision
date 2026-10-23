@@ -1,0 +1,200 @@
+<UserControl
+    x:Class="WslVision.Views.Pages.TerminalView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:vm="clr-namespace:WslVision.ViewModels"
+    d:DataContext="{d:DesignInstance Type=vm:TerminalViewModel}"
+    mc:Ignorable="d">
+
+    <Grid Margin="24,20,24,16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="320" />
+        </Grid.ColumnDefinitions>
+
+        <!--  Abas e o terminal da aba atual  -->
+        <DockPanel Grid.Column="0">
+            <DockPanel Margin="0,0,0,8" DockPanel.Dock="Top">
+                <Button Height="34" Command="{Binding OpenCommand}" DockPanel.Dock="Right" Style="{StaticResource TintSuccess}"
+                        AutomationProperties.Name="Nova aba de terminal" ToolTip="Nova aba na pasta escolhida ao lado">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Margin="0,0,6,0" FontSize="16" Symbol="Add24" />
+                        <TextBlock VerticalAlignment="Center" Text="Nova aba" />
+                    </StackPanel>
+                </Button>
+                <TextBlock Margin="0,0,16,0" VerticalAlignment="Center" DockPanel.Dock="Left" Style="{StaticResource PageTitle}" FontSize="24" Text="Terminal" />
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Sessions}" KeyboardNavigation.TabNavigation="Once">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:TerminalSessionViewModel}">
+                                <Border x:Name="Tab" Height="34" Margin="0,0,4,0" Padding="10,0,2,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="6" Cursor="Hand"
+                                        AutomationProperties.Name="{Binding Title}" Focusable="True" FocusVisualStyle="{StaticResource RoundFocusVisual}">
+                                    <Border.InputBindings>
+                                        <MouseBinding Command="{Binding DataContext.SelectSessionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" MouseAction="LeftClick" />
+                                        <MouseBinding Command="{Binding DataContext.CloseSessionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" MouseAction="MiddleClick" />
+                                        <KeyBinding Command="{Binding DataContext.SelectSessionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Key="Enter" />
+                                    </Border.InputBindings>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon x:Name="TabIcon" Margin="0,0,6,0" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Symbol="WindowConsole20" />
+                                        <TextBlock MaxWidth="180" VerticalAlignment="Center" Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}" />
+                                        <Button Width="24" Height="24" Margin="4,0,0,0" Padding="0" AutomationProperties.Name="Fechar aba" Style="{StaticResource TintNeutralSubtle}" ToolTip="Fechar aba (clique do meio também fecha)"
+                                                Command="{Binding DataContext.CloseSessionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                                            <ui:SymbolIcon FontSize="12" Symbol="Dismiss24" />
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <Trigger SourceName="Tab" Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Tab" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                    </Trigger>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter TargetName="Tab" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                                        <Setter TargetName="Tab" Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                                        <Setter TargetName="TabIcon" Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding AsRoot}" Value="True">
+                                        <Setter TargetName="TabIcon" Property="Symbol" Value="LockClosed24" />
+                                        <Setter TargetName="TabIcon" Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+
+            <Border Padding="8,6" ClipToBounds="True" Style="{StaticResource CardBorder}">
+                <Grid>
+                    <!--  Os terminais (um por aba) entram aqui pelo código; só o da aba atual fica visível  -->
+                    <Grid x:Name="TermHost" />
+
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding HasNoSessions, Converter={StaticResource BoolToVis}}">
+                        <ui:SymbolIcon HorizontalAlignment="Center" FontSize="40" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Symbol="WindowConsole20" />
+                        <TextBlock Margin="0,12,0,4" HorizontalAlignment="Center" Style="{StaticResource SectionTitle}" Text="Nenhum terminal aberto" />
+                        <TextBlock MaxWidth="420" HorizontalAlignment="Center" Style="{StaticResource Secondary}" TextAlignment="Center"
+                                   Text="Abra um terminal da distro aqui dentro, com abas. Escolha a pasta ao lado ou rode um dos seus comandos rápidos." />
+                        <ui:Button Margin="0,16,0,0" HorizontalAlignment="Center" Appearance="Primary" Command="{Binding OpenCommand}" Content="Abrir terminal" Icon="{ui:SymbolIcon WindowConsole20}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DockPanel>
+
+        <!--  Painel lateral: pasta da nova aba e comandos rápidos  -->
+        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Margin="0,0,0,12" Padding="16" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Margin="0,0,0,10" Style="{StaticResource SectionTitle}" Text="Pasta" />
+                        <DockPanel>
+                            <Button Width="34" Height="34" Margin="6,0,0,0" Padding="0" AutomationProperties.Name="Escolher pasta" Command="{Binding BrowseCommand}" DockPanel.Dock="Right"
+                                    Style="{StaticResource TintButton}" ToolTip="Escolher pasta…">
+                                <ui:SymbolIcon FontSize="16" Symbol="FolderOpen24" />
+                            </Button>
+                            <ui:TextBox AutomationProperties.Name="Pasta" FontFamily="Cascadia Mono, Consolas" Text="{Binding Folder, UpdateSourceTrigger=PropertyChanged}" />
+                        </DockPanel>
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding Recents}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ui:Button Margin="0,0,6,6" Padding="10,3" Appearance="Secondary" Command="{Binding DataContext.PickRecentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               CommandParameter="{Binding}" Content="{Binding}" CornerRadius="12" FontSize="12" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <WrapPanel Margin="0,6,0,0">
+                            <ui:Button Margin="0,0,6,6" Appearance="Primary" Command="{Binding OpenCommand}" Content="Abrir aqui" Icon="{ui:SymbolIcon WindowConsole20}" />
+                            <Button Height="32" Margin="0,0,6,6" Command="{Binding OpenAsRootCommand}" Style="{StaticResource TintCritical}" ToolTip="Abre uma aba como root (pede confirmação)">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Margin="0,0,6,0" FontSize="14" Symbol="LockClosed24" />
+                                    <TextBlock VerticalAlignment="Center" Text="Como root" />
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+                        <ui:Button Margin="0,2,0,0" Appearance="Transparent" Command="{Binding OpenExternalCommand}" Content="Abrir no Windows Terminal" Icon="{ui:SymbolIcon Open24}"
+                                   ToolTip="A mesma pasta, numa janela separada do Windows Terminal" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <DockPanel Margin="16,14,10,10">
+                            <Button Width="32" Padding="0" AutomationProperties.Name="Novo comando rápido" Command="{Binding ToggleFormCommand}" DockPanel.Dock="Right" Style="{StaticResource TintAccent}" ToolTip="Novo comando">
+                                <ui:SymbolIcon FontSize="16" Symbol="Add24" />
+                            </Button>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitle}" Text="Comandos rápidos" />
+                                <TextBlock Style="{StaticResource Caption}" Text="▶ abre uma aba nova na pasta do comando; ➤ roda na aba atual." />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <Border Padding="16,12" Background="{DynamicResource SubtleFillColorTertiaryBrush}" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1"
+                                Visibility="{Binding ShowForm, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,4" FontWeight="SemiBold" Text="Nome" />
+                                <ui:TextBox Margin="0,0,0,8" AutomationProperties.Name="Nome do comando" PlaceholderText="Ex.: Subir banco" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="0,0,0,4" FontWeight="SemiBold" Text="Comando" />
+                                <ui:TextBox Margin="0,0,0,8" AutomationProperties.Name="Comando" FontFamily="Cascadia Mono, Consolas" PlaceholderText="docker compose up -d db" Text="{Binding NewCommand, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="0,0,0,4" FontWeight="SemiBold" Text="Pasta" />
+                                <ui:TextBox Margin="0,0,0,10" AutomationProperties.Name="Pasta do comando" FontFamily="Cascadia Mono, Consolas" Text="{Binding NewFolder, UpdateSourceTrigger=PropertyChanged}" />
+                                <ui:Button HorizontalAlignment="Right" Appearance="Primary" Command="{Binding AddCommandCommand}" Content="Salvar" />
+                            </StackPanel>
+                        </Border>
+
+                        <ItemsControl ItemsSource="{Binding Commands}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:QuickCommandViewModel}">
+                                    <Border Padding="16,10,8,10" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+                                        <DockPanel>
+                                            <StackPanel VerticalAlignment="Center" DockPanel.Dock="Right" Orientation="Horizontal">
+                                                <Button Width="30" Height="30" Padding="0" AutomationProperties.Name="{Binding Name, StringFormat=Executar {0} numa aba nova}" Style="{StaticResource TintSuccess}" ToolTip="Executar numa aba nova"
+                                                        Command="{Binding DataContext.RunCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                                                    <ui:SymbolIcon FontSize="14" Filled="True" Symbol="Play24" />
+                                                </Button>
+                                                <Button Width="30" Height="30" Padding="0" AutomationProperties.Name="{Binding Name, StringFormat=Rodar {0} na aba atual}" Style="{StaticResource TintAccent}" ToolTip="Rodar na aba atual"
+                                                        Command="{Binding DataContext.RunHereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                        IsEnabled="{Binding DataContext.HasCurrentSession, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                    <ui:SymbolIcon FontSize="14" Symbol="Send24" />
+                                                </Button>
+                                                <Button Width="30" Height="30" Padding="0" AutomationProperties.Name="{Binding Name, StringFormat=Remover o comando {0}}" Style="{StaticResource TintCriticalSubtle}" ToolTip="Remover"
+                                                        Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                                                    <ui:SymbolIcon FontSize="14" Symbol="Delete24" />
+                                                </Button>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,8,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                    <ui:SymbolIcon Margin="6,0,0,0" FontSize="14" Foreground="{DynamicResource SystemFillColorSuccessBrush}" Symbol="Checkmark24"
+                                                                   ToolTip="Executado agora" Visibility="{Binding JustRan, Converter={StaticResource BoolToVis}}" />
+                                                </StackPanel>
+                                                <TextBlock Style="{StaticResource Mono}" FontSize="12" Text="{Binding Command}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Command}" />
+                                                <TextBlock Style="{StaticResource Caption}">
+                                                    <Run Text="em " /><Run Text="{Binding Folder, Mode=OneWay}" />
+                                                    <Run Foreground="{DynamicResource SystemFillColorCautionBrush}" Text="{Binding SudoNote, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Margin="16,16" HorizontalAlignment="Center" Style="{StaticResource Secondary}" Text="Nenhum comando salvo. Crie um para subir seu projeto com um clique."
+                                   TextAlignment="Center" Visibility="{Binding HasNoCommands, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
